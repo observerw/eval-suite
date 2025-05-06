@@ -1,0 +1,22 @@
+[project]
+name = "eval-suite"
+version = "0.1.0"
+description = "A flexible framework for evaluating language models."
+readme = "README.md"
+authors = [{ "name" = "observerw", "email" = "wozluohd@gmail.com" }]
+requires-python = ">=3.12"
+dependencies = [
+    "datasets>=3.5.0",
+    "jinja2>=3.1.6",
+    "more-itertools>=10.6.0",
+    "pydantic>=2.11.3",
+    "pydantic-ai>=0.0.46",
+    "pytest>=8.3.5",
+    "tqdm>=4.67.1",
+    "transformers>=4.51.3",
+    "typing-inspect>=0.9.0",
+]
+
+[dependency-groups]
+openai = ["docker>=7.1.0", "openai>=1.75.0", "tenacity>=9.1.2"]
+sglang = ["sglang>=0.4.5.post1", "torch>=2.6.0", "httpx>=0.28.1"]

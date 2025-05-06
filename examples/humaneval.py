@@ -1,0 +1,169 @@
+import asyncio as aio
+import logging
+from enum import Enum
+from pathlib import Path
+from typing import Any
+
+from pydantic import BaseModel
+
+from eval_suite.benchmark import BaseStat, EvalInputBase, EvalResultGroups
+from eval_suite.benchmark.metric import passk
+from eval_suite.client import BaseClientConfig, Message
+from eval_suite.client.sglang import EvalServerArgs, SGLangClient, SGLangSamplingParams
+from eval_suite.command import CommandBase, Process
+from eval_suite.exception import EvalException
+from eval_suite.utils.dataset import load_repo_dataset
+from eval_suite.utils.extract import extract_code
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    filename="humaneval.log",
+    filemode="w",
+)
+
+
+class Command(CommandBase):
+    @classmethod
+    def python(
+        cls,
+        code: str,
+        cwd: Path | None = None,
+        **kwargs,
+    ) -> Process:
+        return cls.docker_run(
+            "python",
+            "-c",
+            code,
+            container="python:3.12.10",
+            # `docker_run` will mount the `cwd` into the container, then `cd` into it to run the command.
+            cwd=cwd,
+            **kwargs,
+        )
+
+
+class ResultType(str, Enum):
+    functional_error = "functional-error"
+
+
+class EvalInput(EvalInputBase):
+    """
+    Schema of the dataset specified in <https://huggingface.co/datasets/openai/openai_humaneval>.
+    """
+
+    task_id: str
+    prompt: str
+    canonical_solution: str
+    test: str
+    entry_point: str
+
+    @property
+    def input_id(self) -> str:
+        # Provide a unique identifier for each input.
+        return self.task_id
+
+        # for dataset that not contains an id column, maybe apply `hash` to the data column:
+        # return str(hash(self.prompt))
+
+    def __str__(self) -> str:
+        return self.prompt
+
+        # It is recommended to use `jinja2` template to manage the prompt.
+        # But for simple cases, you can just use f-strings:
+        # return f"### Problem\n{self.prompt}\n\n### Solution\n{self.canonical_solution}"
+
+
+# although we will use `EvalOutput` and `EvalResult` provided by `passk`,
+# it is still a good practice to define a alias for them for clarity.
+EvalOutput = passk.EvalOutput
+EvalResult = passk.EvalResult
+
+
+class EvalStat(BaseModel):
+    base: BaseStat
+    passk: passk.PassKStat
+
+
+class HumanEvalBenchmark(passk.Benchmark[EvalInput, EvalStat]):
+    def to_input(self, data: Any) -> EvalInput:
+        # Convert the raw data into the EvalInput schema.
+        # Since `EvalInput` is a `pydantic` model, you can simply use `model_validate` to validate and convert the data.
+
+        return EvalInput.model_validate(data)
+
+    def to_output(
+        self,
+        generation: Message[dict],
+        input: EvalInput,
+    ) -> passk.EvalOutput:
+        # If the generated content is exactly what you want to evaluate, you can simply return it:
+        # return passk.EvalOutput(code=ctx.generation.content)
+
+        # However, it is safer to instruct the model to generate specific format so we can extract the real result from the generation:
+        result = extract_code(generation.content).get("python", id="result")
+
+        if not result:
+            raise ValueError("No code found in the generation")
+
+        return passk.EvalOutput(code=result.code)
+
+    async def to_result_async(
+        self,
+        eval_path: Path,
+        input: EvalInput,
+        output: passk.EvalOutput,
+    ) -> passk.EvalResult:
+        # We need to call external command to evaluate the generated code,
+        # so we choose to implement `to_result_async`.
+        # Here we simply run the code. If no exception is raised, we consider it passed.
+        # If command failed, we will raise a `EvalException` indicating there is a functional error.
+        _ = await Command.python(code=output.code, cwd=eval_path).run(
+            exc=EvalException(type=ResultType.functional_error),
+        )
+
+        return passk.EvalResult(passed=True)
+
+    def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:
+        return EvalStat(
+            base=base,
+            passk=passk.PassKStat.from_groups(groups=groups, k=self.config.k),
+        )
+
+
+async def main():
+    dataset = load_repo_dataset("openai/openai_humaneval", split="test")
+
+    with (
+        HumanEvalBenchmark(
+            name="human-eval",
+            # remember to turn dataset into a list
+            dataset=dataset.to_list(),
+            config=passk.EvalConfig(
+                k=5,
+            ),
+            base_path=Path("output"),
+        ) as benchmark,
+        SGLangClient(
+            server_args=EvalServerArgs(
+                model_path="Qwen/Qwen2.5-32B-Instruct",
+                dp_size=4,
+                tp_size=2,
+            ),
+            sampling_params=SGLangSamplingParams(
+                temperature=0.7,
+                top_p=0.8,
+                max_completion_tokens=8192,
+                repetition_penalty=1.05,
+                top_k=20,
+            ),
+            config=BaseClientConfig(
+                batch_size=2048,
+            ),
+        ) as client,
+    ):
+        stat = await benchmark.run(client)
+        print(stat)
+
+
+if __name__ == "__main__":
+    aio.run(main())
