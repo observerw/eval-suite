@@ -1,4 +1,5 @@
 from collections import Counter
+from pathlib import Path
 from typing import Self
 
 from pydantic import BaseModel, Field
@@ -6,8 +7,17 @@ from pydantic import BaseModel, Field
 from eval_suite.benchmark.result import _EvalResultGroups
 
 
+class EvalStatFile(BaseModel):
+    id: str
+    desc: str
+    path: Path
+
+
 class EvalStatBase(BaseModel):
     model_config = {"frozen": True}
+
+    files: list[EvalStatFile] | None = None
+    """Related files for the statistics"""
 
 
 class BaseStat(EvalStatBase):
