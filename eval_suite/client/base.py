@@ -69,6 +69,11 @@ class ClientBase[
         return self._model
 
     @property
+    def path_name(self) -> str:
+        """Return a name for the model that can be used in file paths."""
+        return self._model.replace("/", "_").replace(":", "_")
+
+    @property
     def sampling_params(self) -> Sampling:
         return self._sampling_params
 

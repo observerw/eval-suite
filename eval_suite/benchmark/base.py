@@ -144,15 +144,6 @@ class BenchmarkBase[
             tmpdir.cleanup()
             self._base_path = None
 
-    @property
-    def eval_path(self) -> Path:
-        if not self.base_path:
-            raise ValueError(
-                "`base_path` is not set. Consider providing one, or use `with` statement to use a temporary directory."
-            )
-
-        return self.base_path / self.name
-
     def to_input(self, data: Any) -> Input:
         """Convert the dataset item to a task-specific input.
 
@@ -445,8 +436,6 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
 
         self._logger = logging.getLogger(f"{self._ben.name}/{self._cli.model}")
 
-        self._eval_path = benchmark.eval_path / benchmark.name / self._cli.model
-
         self._Cache = self._ben._Cache
         self._cache_pool = EvalCachePool(schema=self._Cache, base_path=self._eval_path)
 
@@ -468,6 +457,15 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
             TimeElapsedColumn(),
             transient=True,
         )
+
+    @property
+    def _eval_path(self) -> Path:
+        if not (base_path := self._ben.base_path):
+            raise ValueError(
+                "`base_path` is not set. Consider providing one, or use `with` statement to use a temporary directory."
+            )
+
+        return base_path / self._cli.path_name / self._ben.name
 
     def __enter__(self) -> Self:
         self._progress.start()
