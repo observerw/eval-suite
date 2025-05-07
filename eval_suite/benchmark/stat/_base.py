@@ -26,9 +26,6 @@ class BaseStat(EvalStatBase):
     total_inputs: int = 0
     """Total number of items in the evaluation set"""
 
-    sample_count: dict[str, int] = Field(default_factory=dict)
-    """Sample count for each item"""
-
     @classmethod
     def from_groups(cls, groups: _EvalResultGroups) -> Self:
         stats = Counter(
@@ -48,15 +45,9 @@ class BaseStat(EvalStatBase):
 
         total_samples = sum(len(results) for results in groups.root.values())
         total_inputs = len(groups.root)
-        sample_count = Counter(
-            result._input_id  #
-            for results in groups.root.values()
-            for result in results
-        )
 
         return cls(
             results=result_items,
             total_samples=total_samples,
             total_inputs=total_inputs,
-            sample_count=dict(sample_count),
         )
