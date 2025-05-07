@@ -28,6 +28,10 @@ from eval_suite.client.utils import instruction_messages
 logger = logging.getLogger(__name__)
 
 
+class OpenAIClientConfig(BaseClientConfig):
+    stream_generation: bool = True
+
+
 class OpenAISamplingParams(BaseSamplingParams):
     pass
 
@@ -58,12 +62,14 @@ def wait_for_openai_server(
         raise ValueError(f"Model {model} is not available at {base_url}")
 
 
-class OpenAIClient(ClientBase[ChatCompletion, OpenAISamplingParams, BaseClientConfig]):
+class OpenAIClient(
+    ClientBase[ChatCompletion, OpenAISamplingParams, OpenAIClientConfig]
+):
     def __init__(
         self,
         model: str,
         *,
-        config: BaseClientConfig = BaseClientConfig(),
+        config: OpenAIClientConfig = OpenAIClientConfig(),
         sampling_params: OpenAISamplingParams = OpenAISamplingParams(),
         api_key: SecretStr | None = None,
         base_url: str | None = None,
