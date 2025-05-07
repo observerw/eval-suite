@@ -1,5 +1,5 @@
 from eval_suite.benchmark import BaseStat, EvalStatBase
-from eval_suite.benchmark.metric import passk
+from eval_suite.benchmark.metric import pass_k
 from eval_suite.benchmark.schema import EvalInputBase
 
 dataset_id = "livecodebench/code_generation_lite"
@@ -19,15 +19,15 @@ class EvalInput(EvalInputBase):
     metadata: str
 
 
-EvalResult = passk.EvalResult
+EvalResult = pass_k.EvalResult
 
 
 class EvalStat(EvalStatBase):
     base: BaseStat
-    passk: passk.PassKStat
+    passk: pass_k.PassKStat
 
 
-class LiveCodeBenchmark(passk.Benchmark[EvalInput, EvalStat]):
+class LiveCodeBenchmark(pass_k.Benchmark[EvalInput, EvalStat]):
     pass
 
 

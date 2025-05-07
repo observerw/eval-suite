@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import override
 
 from eval_suite.benchmark import BaseStat, EvalInputBase, EvalResultGroups, EvalStatBase
-from eval_suite.benchmark.metric import passk
+from eval_suite.benchmark.metric import pass_k
 from eval_suite.client import BaseClientConfig, Message
 from eval_suite.client.sglang import EvalServerArgs, SGLangClient, SGLangSamplingParams
 from eval_suite.command import CommandBase, Process
@@ -77,34 +77,34 @@ class EvalInput(EvalInputBase):
         return self.prompt
 
 
-EvalOutput = passk.EvalOutput
-EvalResult = passk.EvalResult
+EvalOutput = pass_k.EvalOutput
+EvalResult = pass_k.EvalResult
 
 
 class EvalStat(EvalStatBase):
     base: BaseStat
-    passk: passk.PassKStat
+    passk: pass_k.PassKStat
 
 
-class VerilogEvalBenchmark(passk.Benchmark[EvalInput, EvalStat]):
+class VerilogEvalBenchmark(pass_k.Benchmark[EvalInput, EvalStat]):
     def to_output(
         self,
         generation: Message[dict],
         input: EvalInput,
-    ) -> passk.EvalOutput:
+    ) -> pass_k.EvalOutput:
         result = extract_code(generation.content).get("verilog", id="result")
 
         if not result:
             raise ValueError("No code found in the generation")
 
-        return passk.EvalOutput(code=result.code)
+        return pass_k.EvalOutput(code=result.code)
 
     async def to_result_async(
         self,
         eval_path: Path,
         input: EvalInput,
-        output: passk.EvalOutput,
-    ) -> passk.EvalResult:
+        output: pass_k.EvalOutput,
+    ) -> pass_k.EvalResult:
         (design_path := eval_path / "design.v").write_text(output.code)
         (testbench_path := eval_path / "testbench.v").write_text(input.test)
 
@@ -127,7 +127,7 @@ class VerilogEvalBenchmark(passk.Benchmark[EvalInput, EvalStat]):
     def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:
         return EvalStat(
             base=base,
-            passk=passk.PassKStat.from_groups(groups=groups, k=self.eval_config.k),
+            passk=pass_k.PassKStat.from_groups(groups=groups, k=self.eval_config.k),
         )
 
 
@@ -141,7 +141,7 @@ async def main():
         VerilogEvalBenchmark(
             name="verilog-eval",
             dataset=dataset.to_list(),
-            eval_config=passk.EvalConfig(
+            eval_config=pass_k.EvalConfig(
                 k=10,
                 n_samples=20,
                 max_n_samples=40,
@@ -157,7 +157,7 @@ async def main():
             sampling_params=SGLangSamplingParams(
                 temperature=0.7,
                 top_p=0.8,
-                max_completion_tokens=8192,
+                max_new_tokens=8192,
                 repetition_penalty=1.05,
                 top_k=20,
             ),

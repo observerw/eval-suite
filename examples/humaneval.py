@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from eval_suite.benchmark import BaseStat, EvalInputBase, EvalResultGroups, EvalStatBase
-from eval_suite.benchmark.metric import passk
+from eval_suite.benchmark.metric import pass_k
 from eval_suite.client import BaseClientConfig, Message
 from eval_suite.client.sglang import EvalServerArgs, SGLangClient, SGLangSamplingParams
 from eval_suite.command import CommandBase, Process
@@ -73,16 +73,16 @@ class EvalInput(EvalInputBase):
 
 # although we will use `EvalOutput` and `EvalResult` provided by `passk`,
 # it is still a good practice to define a alias for them for clarity.
-EvalOutput = passk.EvalOutput
-EvalResult = passk.EvalResult
+EvalOutput = pass_k.EvalOutput
+EvalResult = pass_k.EvalResult
 
 
 class EvalStat(EvalStatBase):
     base: BaseStat
-    passk: passk.PassKStat
+    passk: pass_k.PassKStat
 
 
-class HumanEvalBenchmark(passk.Benchmark[EvalInput, EvalStat]):
+class HumanEvalBenchmark(pass_k.Benchmark[EvalInput, EvalStat]):
     def to_input(self, data: Any) -> EvalInput:
         # Convert the raw data into the EvalInput schema.
         # Since `EvalInput` is a `pydantic` model, you can simply use `model_validate` to validate and convert the data.
@@ -93,7 +93,7 @@ class HumanEvalBenchmark(passk.Benchmark[EvalInput, EvalStat]):
         self,
         generation: Message[dict],
         input: EvalInput,
-    ) -> passk.EvalOutput:
+    ) -> pass_k.EvalOutput:
         # If the generated content is exactly what you want to evaluate, you can simply return it:
         # return passk.EvalOutput(code=ctx.generation.content)
 
@@ -103,14 +103,14 @@ class HumanEvalBenchmark(passk.Benchmark[EvalInput, EvalStat]):
         if not result:
             raise ValueError("No code found in the generation")
 
-        return passk.EvalOutput(code=result.code)
+        return pass_k.EvalOutput(code=result.code)
 
     async def to_result_async(
         self,
         eval_path: Path,
         input: EvalInput,
-        output: passk.EvalOutput,
-    ) -> passk.EvalResult:
+        output: pass_k.EvalOutput,
+    ) -> pass_k.EvalResult:
         # We need to call external command to evaluate the generated code,
         # so we choose to implement `to_result_async`.
         # Here we simply run the code. If no exception is raised, we consider it passed.
@@ -119,12 +119,12 @@ class HumanEvalBenchmark(passk.Benchmark[EvalInput, EvalStat]):
             exc=EvalException(type=ResultType.functional_error),
         )
 
-        return passk.EvalResult(passed=True)
+        return pass_k.EvalResult(passed=True)
 
     def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:
         return EvalStat(
             base=base,
-            passk=passk.PassKStat.from_groups(groups=groups, k=self.eval_config.k),
+            passk=pass_k.PassKStat.from_groups(groups=groups, k=self.eval_config.k),
         )
 
 
@@ -136,7 +136,7 @@ async def main():
             name="human-eval",
             # remember to turn dataset into a list
             dataset=dataset.to_list(),
-            eval_config=passk.EvalConfig(
+            eval_config=pass_k.EvalConfig(
                 k=5,
             ),
             base_path=Path("output"),
@@ -150,7 +150,7 @@ async def main():
             sampling_params=SGLangSamplingParams(
                 temperature=0.7,
                 top_p=0.8,
-                max_completion_tokens=8192,
+                max_new_tokens=8192,
                 repetition_penalty=1.05,
                 top_k=20,
             ),
