@@ -66,7 +66,7 @@ class _EvalResultGroups(RootModel[dict[InputID, list[_EvalResultBase]]]):
         result_count = len(
             [
                 result
-                for result in self.root[input_id]
+                for result in self.root.get(input_id, [])
                 if isinstance(result, EvalResultBase)
             ]
         )
