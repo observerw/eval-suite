@@ -686,7 +686,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
 
     def _input_stream(self) -> Iterable[EvalInputBase]:
         for sample_id in (
-            range(1, max_n)
+            range(1, max_n + 1)
             # try at most `max_n_samples` samples
             if (max_n := self._ben.eval_config.max_n_samples)
             else itertools.count(1)
@@ -698,17 +698,17 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
                 )
                 for item in self._ben.dataset
             )
-            inputs = (
+            inputs = [
                 input
                 for input in inputs
                 # skip item with sufficient samples
                 if not self._group.is_completed(input._eval_id.input_id)
-            )
+            ]
 
-            for input in inputs:
-                yield input
-            else:
+            if not inputs:
                 break
+
+            yield from inputs
 
     async def run(self) -> BaseModel | None:
         if (
