@@ -702,18 +702,9 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
                 if not self._group.is_completed(input._eval_id.input_id)
             )
 
-            count = 0
             for input in inputs:
-                count += 1
                 yield input
-
-            if count > 0:
-                self._logger.info(f"Generated {count} inputs for sample_id {sample_id}")
-
-            if count == 0:
-                self._logger.info(
-                    "All inputs have sufficient samples, evaluation complete"
-                )
+            else:
                 break
 
     async def run(self) -> BaseModel | None:

@@ -16,7 +16,6 @@ class BaseSamplingParams(BaseModel):
     model_config = {"extra": "allow"}
 
     frequency_penalty: float | None = None
-    logit_bias: dict[str, int] | None = None
     logbrobs: bool | None = None
     max_completion_tokens: int | None = None
     max_tokens: int | None = None
