@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 from types import TracebackType
-from typing import Literal, cast, override
+from typing import Any, Literal, cast, override
 
 import torch
 from sglang.srt.entrypoints.engine import Engine
@@ -29,10 +29,34 @@ class EvalServerArgs(ServerArgs):
 
 
 class SGLangSamplingParams(BaseSamplingParams):
-    min_p: float | None = None
-    top_k: int | None = None
+    # Core parameters
+    min_p: float = 0.0
+    top_k: int = -1
+    top_p: float = 1.0
+    temperature: float = 1.0
+    max_new_tokens: int = 128
+    min_new_tokens: int = 0
 
+    # Penalizers
     repetition_penalty: float | None = None
+    frequency_penalty: float = 0.0
+    presence_penalty: float = 0.0
+    stop: str | list[str] | None = None
+    stop_token_ids: list[int] | None = None
+
+    # Constrained decoding
+    json_schema: str | None = None
+    regex: str | None = None
+    ebnf: str | None = None
+
+    # Other options
+    n: int = 1
+    spaces_between_special_tokens: bool = True
+    no_stop_trim: bool = False
+    continue_final_message: bool = False
+    ignore_eos: bool = False
+    skip_special_tokens: bool = True
+    custom_params: list[dict[str, Any]] | None = None
 
 
 class SGLangClient(ClientBase[dict, SGLangSamplingParams, BaseClientConfig]):

@@ -15,17 +15,6 @@ logger = logging.getLogger(__name__)
 class BaseSamplingParams(BaseModel):
     model_config = {"extra": "allow"}
 
-    frequency_penalty: float | None = None
-    logbrobs: bool | None = None
-    max_completion_tokens: int | None = None
-    max_tokens: int | None = None
-    presence_penalty: float | None = None
-    response_format: dict | None = None
-    seed: int | None = None
-    stop: str | list[str] | None = None
-    temperature: float | None = None
-    top_p: float | None = None
-
 
 class Message[Gen](BaseModel):
     content: str
