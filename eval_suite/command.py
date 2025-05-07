@@ -92,13 +92,11 @@ class CommandBase:
             "run",
             "--rm",
             "-i",
-            image,
             "-v",
             f"{cwd}:{cwd}:rw",
             *work_dir_cmd,
+            image,
             *args,
-            stdout=sp.PIPE,
-            stderr=sp.PIPE,
             **kwargs,
         )
 
@@ -124,7 +122,5 @@ class CommandBase:
             "-i",
             container,
             *args,
-            stdout=sp.PIPE,
-            stderr=sp.PIPE,
             **kwargs,
         )
