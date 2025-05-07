@@ -74,9 +74,6 @@ class _StatContext:
     base: BaseStat
     groups: EvalResultGroups
 
-    def __post_init__(self):
-        self.eval_path.mkdir(parents=True, exist_ok=True)
-
 
 class BenchmarkBase[
     Input: EvalInputBase,
@@ -133,9 +130,7 @@ class BenchmarkBase[
         return EvalCache[Output, Result]
 
     def __enter__(self) -> Self:
-        if path := self.base_path:
-            path.mkdir(parents=True, exist_ok=True)
-        else:
+        if not self._base_path:
             self._tmpdir = tempfile.TemporaryDirectory()
             self.base_path = Path(self._tmpdir.name)
 
@@ -490,6 +485,9 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
 
         return base_path / client_name / benchmark_name
 
+    def _sample_path(self, eval_id: EvalID) -> Path:
+        return self._eval_path / self._ben.benchmark_config.results_dir / str(eval_id)
+
     def __enter__(self) -> Self:
         self._progress.start()
         return self
@@ -557,6 +555,8 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         uncached_ctx_batch: list[_ResultContext] = []
 
         for ctx in ctx_batch:
+            ctx.eval_path.mkdir(parents=True, exist_ok=True)
+
             if result := self._cache_pool[ctx.eval_id].result:
                 results.append(result)
             else:
@@ -568,7 +568,6 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         uncached_results = await self._ben._to_result_batch_impl(uncached_ctx_batch)
 
         for ctx, result in zip(uncached_ctx_batch, uncached_results):
-            ctx.eval_path.mkdir(parents=True, exist_ok=True)
             cache = self._cache_pool[ctx.eval_id]
             cache.result = result
             self._cache_pool.update(cache)
@@ -583,11 +582,6 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
             input_ctx_batch: list[_InputContext],
         ) -> list[_ResultContext]:
             input_batch = [self._ben.to_input(ctx.data) for ctx in input_ctx_batch]
-            for input in input_batch:
-                (self._eval_path / str(input._eval_id)).mkdir(
-                    parents=True,
-                    exist_ok=True,
-                )
 
             async with self._overlap_sem:
                 task = self._progress.add_task(
@@ -604,7 +598,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
 
             return [
                 _ResultContext(
-                    eval_path=self._eval_path / str(input._eval_id),
+                    eval_path=self._sample_path(input._eval_id),
                     input=input,
                     output=output,
                 )
@@ -717,6 +711,8 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
             yield from inputs
 
     async def run(self) -> BaseModel | None:
+        self._eval_path.mkdir(parents=True, exist_ok=True)
+
         if (
             result_path := self._eval_path / self._ben.benchmark_config.stat_file
         ).exists():

@@ -62,7 +62,7 @@ def dump_json(data: dict, path: Path):
     """
 
     if not path.suffix == ".json":
-        raise ValueError("Only json files are supported")
+        raise ValueError("`path` must be a valid json file path")
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(

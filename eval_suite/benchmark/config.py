@@ -16,10 +16,13 @@ class BenchmarkConfig(BaseModel):
     Will be used to determine whtether the evaluation is finished or not.
     """
 
-    results_file: Path | None = Path("results.json")
+    results_file: Path = Path("results.json")
     """Relative json file path to save the results of the evaluation"""
 
-    config_file: Path | None = Path("config.json")
+    results_dir: Path = Path("results")
+    """Relative directory path to save all the results of the evaluation"""
+
+    config_file: Path = Path("config.json")
     """Relative json file path to save the configuration used for the evaluation"""
 
     overwrite: bool = False
