@@ -15,6 +15,9 @@ class EvalID(BaseModel):
     def __str__(self) -> str:
         return f"{self.input_id}-{self.sample_id}"
 
+    def __hash__(self) -> int:
+        return hash(str(self))
+
 
 class EvalSchema(BaseModel):
     model_config = {"frozen": True}
