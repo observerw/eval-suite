@@ -40,7 +40,8 @@ class ExceptionEvalResult(_EvalResultBase):
 
     @classmethod
     def from_exception(cls, exc: BaseException) -> Self:
-        return cls.from_exception(EvalException.from_exception(exc))
+        exc = EvalException.from_exception(exc)
+        return cls(type=exc.type, message=exc.message)
 
 
 type EvalResultGroups[Result: EvalResultBase] = Mapping[InputID, Sequence[Result]]
