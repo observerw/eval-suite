@@ -88,8 +88,8 @@ class PassKStat(BaseModel):
     def from_groups(cls, groups: EvalResultGroups[EvalResult], k: int) -> Self:
         all_groups = [_EvalResultGroup(root=list(group)) for group in groups.values()]
         pass_n = {
-            f"pass@{i}": float(np.mean([group.pass_k(k=i) for group in all_groups]))
-            for i in range(1, k + 1)
+            f"pass@{n}": float(np.mean([group.pass_k(k=n) for group in all_groups]))
+            for n in range(1, k + 1)
         }
 
         return cls(k=k, pass_n=pass_n)
