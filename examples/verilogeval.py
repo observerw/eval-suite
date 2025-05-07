@@ -127,7 +127,7 @@ class VerilogEvalBenchmark(passk.Benchmark[EvalInput, EvalStat]):
     def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:
         return EvalStat(
             base=base,
-            passk=passk.PassKStat.from_groups(groups=groups, k=self.config.k),
+            passk=passk.PassKStat.from_groups(groups=groups, k=self.eval_config.k),
         )
 
 
@@ -141,7 +141,7 @@ async def main():
         VerilogEvalBenchmark(
             name="verilog-eval",
             dataset=dataset.to_list(),
-            config=passk.EvalConfig(
+            eval_config=passk.EvalConfig(
                 k=10,
                 n_samples=20,
                 max_n_samples=40,

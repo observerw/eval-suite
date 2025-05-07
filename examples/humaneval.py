@@ -124,7 +124,7 @@ class HumanEvalBenchmark(passk.Benchmark[EvalInput, EvalStat]):
     def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:
         return EvalStat(
             base=base,
-            passk=passk.PassKStat.from_groups(groups=groups, k=self.config.k),
+            passk=passk.PassKStat.from_groups(groups=groups, k=self.eval_config.k),
         )
 
 
@@ -136,7 +136,7 @@ async def main():
             name="human-eval",
             # remember to turn dataset into a list
             dataset=dataset.to_list(),
-            config=passk.EvalConfig(
+            eval_config=passk.EvalConfig(
                 k=5,
             ),
             base_path=Path("output"),

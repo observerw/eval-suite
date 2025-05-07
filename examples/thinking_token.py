@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 from tokenizers import Tokenizer
 
@@ -62,23 +61,7 @@ class ThinkingTokenBenchmark(
         BaseEvalConfig,
     ]
 ):
-    def __init__(
-        self,
-        dataset: Sequence[Any],
-        tokenizer: Tokenizer,
-        *,
-        name: str = "thinking-token",
-        config: BaseEvalConfig = BaseEvalConfig(),
-        base_path: Path | None = None,
-    ):
-        super().__init__(
-            dataset=dataset,
-            name=name,
-            config=config,
-            base_path=base_path,
-        )
-
-        self._tokenizer = tokenizer
+    tokenizer: Tokenizer
 
     def to_output(self, generation: Message, input: EvalInput) -> EvalOutput:
         if not (thinking := generation.reasoning_content):
@@ -93,7 +76,7 @@ class ThinkingTokenBenchmark(
         outputs: Sequence[EvalOutput],
     ) -> Sequence[EvalResult | BaseException]:
         contents = [output.content for output in outputs]
-        tokenized = self._tokenizer.encode_batch(contents)
+        tokenized = self.tokenizer.encode_batch(contents)
 
         return [
             EvalResult(

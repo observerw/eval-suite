@@ -1,7 +1,6 @@
 from abc import abstractmethod
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 from eval_suite.benchmark import (
     BaseEvalConfig,
@@ -29,23 +28,27 @@ JudgeScoreStat = ScoreStat
 class Benchmark[Input: EvalInputBase, Stat: EvalStatBase](
     BenchmarkBase[Input, EvalOutput, EvalResult, Stat, BaseEvalConfig]
 ):
-    def __init__(
-        self,
-        dataset: Sequence[Any],
-        judge: ClientBase,
-        *,
-        name: str = "llm_judge",
-        config: BaseEvalConfig = BaseEvalConfig(),
-        base_path: Path | None = None,
-    ):
-        super().__init__(
-            dataset=dataset,
-            name=name,
-            config=config,
-            base_path=base_path,
-        )
+    eval_config: BaseEvalConfig = BaseEvalConfig()
+    judge: ClientBase
+    """Judge client to evaluate the model output"""
 
-        self._judge = judge
+    # def __init__(
+    #     self,
+    #     dataset: Sequence[Any],
+    #     judge: ClientBase,
+    #     *,
+    #     name: str = "llm_judge",
+    #     config: BaseEvalConfig = BaseEvalConfig(),
+    #     base_path: Path | None = None,
+    # ):
+    #     super().__init__(
+    #         dataset=dataset,
+    #         name=name,
+    #         eval_config=config,
+    #         base_path=base_path,
+    #     )
+
+    #     self._judge = judge
 
     @abstractmethod
     def to_judge_result(self, content: str) -> EvalResult:
@@ -58,9 +61,9 @@ class Benchmark[Input: EvalInputBase, Stat: EvalStatBase](
         outputs: Sequence[EvalOutput],
     ) -> Sequence[EvalResult | BaseException]:
         contents = [output.content for output in outputs]
-        msgs = await self._judge.generate(
+        msgs = await self.judge.generate(
             contents,
-            system_prompt=self.config.system_prompt,
+            system_prompt=self.eval_config.system_prompt,
         )
 
         results = [

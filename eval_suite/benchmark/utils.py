@@ -1,5 +1,7 @@
+import json
 from abc import ABC
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 from typing import Any
 
 from pydantic import RootModel
@@ -52,3 +54,23 @@ def method_resolve[Base: ABC](
             None,
         ):
             return override_method
+
+
+def dump_json(data: dict, path: Path):
+    """
+    Dump the data to a json file.
+    """
+
+    if not path.suffix == ".json":
+        raise ValueError("Only json files are supported")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            data,
+            indent=2,
+            ensure_ascii=False,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )

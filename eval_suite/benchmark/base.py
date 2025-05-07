@@ -28,7 +28,7 @@ from rich.progress import (
 )
 
 from eval_suite.benchmark.cache import EvalCache, EvalCachePool
-from eval_suite.benchmark.config import BaseEvalConfig
+from eval_suite.benchmark.config import BaseEvalConfig, BenchmarkConfig
 from eval_suite.benchmark.result import (
     EvalResultBase,
     EvalResultGroups,
@@ -38,7 +38,7 @@ from eval_suite.benchmark.result import (
 )
 from eval_suite.benchmark.schema import EvalID, EvalInputBase, EvalOutputBase
 from eval_suite.benchmark.stat._base import BaseStat, EvalStatBase
-from eval_suite.benchmark.utils import method_resolve
+from eval_suite.benchmark.utils import dump_json, method_resolve
 from eval_suite.client import ClientBase, Message
 
 
@@ -89,9 +89,19 @@ class BenchmarkBase[
     Config: BaseEvalConfig,
 ](BaseModel, ABC):
     dataset: Sequence[Any]
-    config: Config
-    name: str = f"benchmark-{time.strftime('%Y-%m-%d_%H-%M-%S')}"
+    """The dataset to evaluate. Must be a sequence of items."""
+
+    eval_config: Config
+    """The evaluation configuration."""
+
+    benchmark_config: BenchmarkConfig = BenchmarkConfig()
+    """The benchmark configuration."""
+
+    name: str = "benchmark"
+    """The name of the benchmark."""
+
     base_path: Path | None = None
+    """The base path to store the evaluation results."""
 
     _typevar_map: ClassVar[dict[TypeVar, Any]] = {}
 
@@ -426,12 +436,14 @@ class BenchmarkBase[
 class BenchmarkExcutor:  # Type-free since we don't really care about concrete types
     """Execute the evaluation process using one benchmark and one client"""
 
-    def __init__(
-        self,
-        benchmark: BenchmarkBase,
-        client: ClientBase,
-    ) -> None:
-        self._ben = benchmark
+    def __init__(self, benchmark: BenchmarkBase, client: ClientBase) -> None:
+        self._ben: BenchmarkBase[
+            EvalInputBase,
+            EvalOutputBase,
+            EvalResultBase,
+            EvalStatBase,
+            BaseEvalConfig,
+        ] = benchmark
         self._cli = client
 
         self._logger = logging.getLogger(f"{self._ben.name}/{self._cli.model}")
@@ -441,14 +453,16 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
 
         self._input_queue = aio.Queue[_InputContext | None](self._cli.config.batch_size)
         self._result_queue = aio.Queue[_ResultContext | None](
-            maxsize=self._ben.config.eval_batch_size
+            maxsize=self._ben.benchmark_config.eval_batch_size
         )
 
         self._group = _EvalResultGroups()
-        self._group._config = self._ben.config
+        self._group._config = self._ben.eval_config
 
         # if overlap is enabled, we can run two tasks in parallel
-        self._overlap_sem = aio.Semaphore(value=2 if self._ben.config.overlap else 1)
+        self._overlap_sem = aio.Semaphore(
+            value=2 if self._ben.benchmark_config.overlap else 1
+        )
 
         self._progress = Progress(
             TextColumn("[bold blue] {task.description}"),
@@ -465,7 +479,13 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
                 "`base_path` is not set. Consider providing one, or use `with` statement to use a temporary directory."
             )
 
-        return base_path / self._cli.path_name / self._ben.name
+        benchmark_name = self._ben.name
+        if self._ben.benchmark_config.with_timestamp:
+            benchmark_name += f"-{time.strftime('%Y-%m-%d_%H-%M-%S')}"
+
+        client_name = self._cli.path_name
+
+        return base_path / client_name / benchmark_name
 
     def __enter__(self) -> Self:
         self._progress.start()
@@ -486,7 +506,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         input_list = list(inputs)
         gen_batch = await self._cli.generate(
             [str(input) for input in input_list],
-            system_prompt=self._ben.config.system_prompt,
+            system_prompt=self._ben.eval_config.system_prompt,
         )
 
         success_count = sum(1 for gen in gen_batch if gen)
@@ -627,7 +647,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
                 result_ctx_batch.append(result_ctx)
 
             if not result_ctx or (
-                len(result_ctx_batch) == self._ben.config.eval_batch_size
+                len(result_ctx_batch) == self._ben.benchmark_config.eval_batch_size
             ):
                 if result_ctx_batch:
                     self._logger.debug(
@@ -656,7 +676,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
 
     @property
     def _total_count(self) -> int:
-        expected_count = self._ben.config.n_samples * len(self._ben.dataset)
+        expected_count = self._ben.eval_config.n_samples * len(self._ben.dataset)
         unexpected_count = self._group._exc_result_count
 
         return expected_count + unexpected_count
@@ -665,7 +685,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         for sample_id in (
             range(1, max_n)
             # try at most `max_n_samples` samples
-            if (max_n := self._ben.config.max_n_samples)
+            if (max_n := self._ben.eval_config.max_n_samples)
             else itertools.count(1)
         ):
             inputs = (
@@ -697,8 +717,10 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
                 break
 
     async def run(self) -> BaseModel | None:
-        if (result_path := self._eval_path / self._ben.config.stat_file).exists():
-            if self._ben.config.overwrite:
+        if (
+            result_path := self._eval_path / self._ben.benchmark_config.stat_file
+        ).exists():
+            if self._ben.benchmark_config.overwrite:
                 self._logger.info(
                     f"Result file {result_path} already exists. Overwriting."
                 )
@@ -730,15 +752,14 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
                     await self._input_queue.put(_InputContext(input))
                     self._progress.update(task, advance=1, total=self._total_count)
 
-                print("done")
-
                 await self._input_queue.put(None)
                 await self._input_queue.join()
                 await self._result_queue.put(None)
                 await self._result_queue.join()
-        except Exception as e:
-            self._logger.error(f"Benchmark execution failed: {str(e)}")
-            raise e
+        except* Exception as exc_group:
+            exc_msg = "\n".join(str(exc) for exc in exc_group.exceptions)
+            self._logger.error(f"Benchmark execution failed: {exc_msg}")
+            raise exc_group
         finally:
             self._logger.info("Generating and saving statistics")
             stat = self._ben._to_stat(
@@ -749,13 +770,21 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
                 )
             )
 
-            (self._eval_path / self._ben.config.stat_file).write_text(
-                json.dumps(stat.model_dump(), indent=2)
+            dump_json(
+                stat.model_dump(),
+                self._eval_path / self._ben.benchmark_config.stat_file,
             )
 
-            if results_file := self._ben.config.results_file:
-                (self._eval_path / results_file).write_text(
-                    json.dumps(self._group.model_dump(), indent=2)
+            if results_file := self._ben.benchmark_config.results_file:
+                dump_json(
+                    self._group.model_dump(),
+                    self._eval_path / results_file,
+                )
+
+            if config_file := self._ben.benchmark_config.config_file:
+                dump_json(
+                    self._ben.eval_config.model_dump(),
+                    self._eval_path / config_file,
                 )
 
             self._logger.info("Benchmark execution completed successfully")
