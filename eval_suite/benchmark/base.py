@@ -130,7 +130,7 @@ class BenchmarkBase[
         return EvalCache[Output, Result]
 
     def __enter__(self) -> Self:
-        if not self._base_path:
+        if not self.base_path:
             self._tmpdir = tempfile.TemporaryDirectory()
             self.base_path = Path(self._tmpdir.name)
 
@@ -387,6 +387,8 @@ class BenchmarkBase[
         self,
         ctx_batch: Sequence[_ResultContext],
     ) -> Sequence[_EvalResultBase]:
+        # TODO for non-batch implementaion, provide a stream mechanism
+
         # find the first implemented `to_result*` method in the order of mro, means user implementation always
         # takes precedence over the base class implementation
         # if none is found, fall back to `BenchmarkBase.to_result*`
@@ -447,7 +449,10 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         self._logger = logging.getLogger(f"{self._ben.name}/{self._cli.model}")
 
         self._Cache = self._ben._Cache
-        self._cache_pool = EvalCachePool(schema=self._Cache, base_path=self._eval_path)
+        self._cache_pool = EvalCachePool(
+            cache_schema=self._Cache,
+            base_path=self._eval_path / self._ben.benchmark_config.results_dir,
+        )
 
         self._input_queue = aio.Queue[_InputContext | None](self._cli.config.batch_size)
         self._result_queue = aio.Queue[_ResultContext | None](
@@ -508,6 +513,8 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         self,
         inputs: Iterable[EvalInputBase],
     ) -> Sequence[Message | None]:
+        # TODO support stream-generation, see <client/config.py>
+
         input_list = list(inputs)
         gen_batch = await self._cli.generate(
             [str(input) for input in input_list],
@@ -580,12 +587,18 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         return results
 
     async def _gen_worker(self):
+        # TODO support stream-generation
+
         self._logger.info("Generation worker started")
 
         async def process_batch(
             input_ctx_batch: list[_InputContext],
         ) -> list[_ResultContext]:
             input_batch = [self._ben.to_input(ctx.data) for ctx in input_ctx_batch]
+
+            # ensure sample path exists
+            for input in input_batch:
+                self._sample_path(input._eval_id).mkdir(parents=True, exist_ok=True)
 
             async with self._overlap_sem:
                 task = self._progress.add_task(
@@ -623,6 +636,9 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
 
                     for result_ctx in result_ctx_batch:
                         await self._result_queue.put(result_ctx)
+
+                        # FIXME when sample_id <= n_samples, task_done here
+                        # when sample_id > n_samples, task_done in eval_worker
                         self._input_queue.task_done()
 
                     input_ctx_batch = []
@@ -636,6 +652,8 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         )
 
     async def _eval_worker(self):
+        # TODO support stream-evaluation
+
         self._logger.info("Evaluation worker started")
 
         async def process_batch(result_ctx_batch: list[_ResultContext]):
@@ -669,6 +687,11 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
                             )
 
                         self._group.add_result(result)
+
+                        # FIXME when sample_id > n_samples, input_queue.task_done here
+                        if result._eval_id.sample_id > self._ben.eval_config.n_samples:
+                            self._input_queue.task_done()
+
                         self._result_queue.task_done()
 
                     result_ctx_batch = []
