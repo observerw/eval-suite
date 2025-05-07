@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -24,6 +25,14 @@ class BenchmarkConfig(BaseModel):
 
     config_file: Path = Path("config.json")
     """Relative json file path to save the configuration used for the evaluation"""
+
+    output_organize: Literal["model-first", "benchmark-first"] = "model-first"
+    """
+    How to organize the output directory.
+
+    - `model-first`: The output directory will be `<base_path>/<model_name>/<benchmark_name>`.
+    - `benchmark-first`: The output directory will be `<base_path>/<benchmark_name>/<model_name>`.
+    """
 
     overwrite: bool = False
     """Whether to overwrite existing results when `stat_file` already exists"""

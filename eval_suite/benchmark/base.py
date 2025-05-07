@@ -483,7 +483,11 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
 
         client_name = self._cli.path_name
 
-        return base_path / client_name / benchmark_name
+        match self._ben.benchmark_config.output_organize:
+            case "model-first":
+                return base_path / client_name / benchmark_name
+            case "benchmark-first":
+                return base_path / benchmark_name / client_name
 
     def _sample_path(self, eval_id: EvalID) -> Path:
         return self._eval_path / self._ben.benchmark_config.results_dir / str(eval_id)
