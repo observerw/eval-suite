@@ -10,6 +10,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "pydantic>=2.11.3",
     "pydantic-ai>=0.0.46",
+    "rich>=14.0.0",
     "tqdm>=4.67.1",
 ]
 
