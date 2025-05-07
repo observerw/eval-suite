@@ -1,7 +1,9 @@
 import os
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from eval_suite.utils.extract import Self
 
 
 class BenchmarkConfig(BaseModel):
@@ -63,3 +65,12 @@ class BaseEvalConfig(BaseModel):
 
     system_prompt: str | None = None
     """System prompt to use for the generation"""
+
+    @model_validator(mode="after")
+    def _validate(self) -> Self:
+        if self.max_n_samples and self.max_n_samples < self.n_samples:
+            raise ValueError(
+                "`max_n_samples` must be greater than or equal to `n_samples`"
+            )
+
+        return self

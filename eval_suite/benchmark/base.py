@@ -63,9 +63,6 @@ class _ResultContext:
     input: EvalInputBase
     output: EvalOutputBase
 
-    def __post_init__(self):
-        self.eval_path.mkdir(parents=True, exist_ok=True)
-
     @property
     def eval_id(self) -> EvalID:
         return self.input._eval_id
@@ -580,6 +577,11 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
             input_ctx_batch: list[_InputContext],
         ) -> list[_ResultContext]:
             input_batch = [self._ben.to_input(ctx.data) for ctx in input_ctx_batch]
+            for input in input_batch:
+                (self._eval_path / str(input._eval_id)).mkdir(
+                    parents=True,
+                    exist_ok=True,
+                )
 
             async with self._overlap_sem:
                 task = self._progress.add_task(
