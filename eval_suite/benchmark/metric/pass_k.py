@@ -98,5 +98,7 @@ class PassKStat(BaseModel):
 class Benchmark[Input: EvalInputBase, Stat: EvalStatBase](
     BenchmarkBase[Input, EvalOutput, EvalResult, Stat, EvalConfig]
 ):
+    eval_config: EvalConfig = EvalConfig()
+
     def to_output(self, generation: Message, input: Input) -> EvalOutput:
         return EvalOutput(code=generation.content)
