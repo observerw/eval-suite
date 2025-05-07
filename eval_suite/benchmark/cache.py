@@ -52,24 +52,21 @@ class EvalCache[Output: EvalOutputBase, Result: EvalResultBase](BaseModel):
             (path / f".{key}.json").write_text(value.json())
 
 
-class EvalCachePool:
-    _lookup: dict[EvalID, EvalCache] = {}
+class EvalCachePool(BaseModel):
+    cache_schema: type[EvalCache]
+    base_path: Path
 
-    def __init__(
-        self,
-        # type-specified `EvalCache` class
-        schema: type[EvalCache],
-        base_path: Path,
-    ) -> None:
-        self._schema = schema
-        self._base_path = base_path
+    _lookup: dict[EvalID, EvalCache] = {}
 
     def __getitem__(self, eval_id: EvalID) -> EvalCache:
         if cache := self._lookup.get(eval_id):
             assert cache._eval_id == eval_id
             return cache
 
-        cache = self._schema.try_load(self._base_path / str(eval_id)) or self._schema()
+        cache = (
+            self.cache_schema.try_load(self.base_path / str(eval_id))
+            or self.cache_schema()
+        )
         cache._eval_id = eval_id
 
         self._lookup[eval_id] = cache
@@ -79,16 +76,4 @@ class EvalCachePool:
         assert cache._eval_id
 
         self._lookup[cache._eval_id] = cache
-        cache.dump(self._base_path / str(cache._eval_id))
-
-    def update_field(self, eval_id: EvalID, **kwargs: Any):
-        if not (cache := self._lookup.get(eval_id)):
-            return
-
-        for key, value in kwargs.items():
-            if not hasattr(cache, key):
-                continue
-
-            setattr(cache, key, value)
-
-        self._lookup[eval_id] = cache
+        cache.dump(self.base_path / str(cache._eval_id))
