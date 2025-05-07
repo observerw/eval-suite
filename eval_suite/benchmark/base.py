@@ -278,6 +278,12 @@ class BenchmarkBase[
             Stat: A statistics object with computed metrics and analysis results.
         """
 
+    @property
+    def doc(self) -> str | None:
+        """Documentation string for the benchmark. Can be useful for `stat.AutoStat`."""
+
+        return self.__doc__
+
     _to_result_methods = (
         "to_result",
         "to_result_async",
@@ -765,7 +771,10 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
             )
 
             dump_json(
-                stat.model_dump(),
+                stat.model_dump(
+                    exclude_unset=True,
+                    exclude_none=True,
+                ),
                 self._eval_path / self._ben.benchmark_config.stat_file,
             )
 
