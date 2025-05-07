@@ -17,6 +17,6 @@ dependencies = [
 [dependency-groups]
 dev = ["pytest>=8.3.5"]
 openai = ["docker>=7.1.0", "openai>=1.75.0", "tenacity>=9.1.2"]
-sglang = ["sglang>=0.4.5.post1", "torch>=2.6.0", "httpx>=0.28.1"]
-transformer = ["transformers>=4.51.3"]
+sglang = ["sglang[all]>=0.4.5.post1", "torch>=2.6.0", "httpx>=0.28.1"]
+transformer = ["transformers==4.51.1"]
 vllm = ["vllm>=0.8.3"]
