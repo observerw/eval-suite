@@ -2,7 +2,6 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
 from tokenizers import Tokenizer
 
 from eval_suite.benchmark import (
@@ -12,7 +11,9 @@ from eval_suite.benchmark import (
     EvalOutputBase,
     EvalResultBase,
     EvalResultGroups,
+    EvalStatBase,
 )
+from eval_suite.benchmark.stat._base import BaseStat
 from eval_suite.client import Message
 
 
@@ -29,7 +30,7 @@ class EvalResult(EvalResultBase):
     length: int
 
 
-class EvalStat(BaseModel):
+class EvalStat(EvalStatBase):
     avg_token_length: float
     token_count: dict[str, int]
 
@@ -101,6 +102,23 @@ class ThinkingTokenBenchmark(
             )
             for content, tokenized in zip(contents, tokenized)
         ]
+
+    def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:
+        results = [result for group in groups.values() for result in group]
+
+        avg_token_length = (
+            sum(result.length for result in results) / len(results) if results else 0
+        )
+
+        token_count: dict[str, int] = {}
+        for result in results:
+            for token in result.content.split():
+                token_count[token] = token_count.setdefault(token, 0) + 1
+
+        return EvalStat(
+            avg_token_length=avg_token_length,
+            token_count=token_count,
+        )
 
 
 async def main():

@@ -11,6 +11,7 @@ from eval_suite.benchmark import (
     EvalOutputBase,
     EvalResultBase,
     EvalResultGroups,
+    EvalStatBase,
 )
 from eval_suite.client import Message
 from eval_suite.exception import BaseEvalResultType, EvalException
@@ -94,7 +95,7 @@ class PassKStat(BaseModel):
         return cls(k=k, pass_n=pass_n)
 
 
-class Benchmark[Input: EvalInputBase, Stat: BaseModel](
+class Benchmark[Input: EvalInputBase, Stat: EvalStatBase](
     BenchmarkBase[Input, EvalOutput, EvalResult, Stat, EvalConfig]
 ):
     def to_output(self, generation: Message, input: Input) -> EvalOutput:

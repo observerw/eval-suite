@@ -1,6 +1,4 @@
-from pydantic import BaseModel
-
-from eval_suite.benchmark import BaseStat
+from eval_suite.benchmark import BaseStat, EvalStatBase
 from eval_suite.benchmark.metric import passk
 from eval_suite.benchmark.schema import EvalInputBase
 
@@ -24,7 +22,7 @@ class EvalInput(EvalInputBase):
 EvalResult = passk.EvalResult
 
 
-class EvalStat(BaseModel):
+class EvalStat(EvalStatBase):
     base: BaseStat
     passk: passk.PassKStat
 

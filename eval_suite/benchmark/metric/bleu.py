@@ -1,9 +1,7 @@
 from abc import abstractmethod
 from pathlib import Path
 
-from pydantic import BaseModel
-
-from eval_suite.benchmark import EvalResultBase
+from eval_suite.benchmark import EvalResultBase, EvalStatBase
 from eval_suite.benchmark.base import BenchmarkBase
 from eval_suite.benchmark.config import BaseEvalConfig
 from eval_suite.benchmark.schema import EvalInputBase, EvalOutputBase
@@ -74,7 +72,7 @@ def bleu(reference: str, generation: str) -> float:
 BleuStat = ScoreStat
 
 
-class BleuBenchmark[Input: EvalInput, Stat: BaseModel](
+class BleuBenchmark[Input: EvalInput, Stat: EvalStatBase](
     BenchmarkBase[Input, EvalOutput, EvalResult, Stat, BaseEvalConfig]
 ):
     def to_output(self, generation: Message, input: Input) -> EvalOutput:

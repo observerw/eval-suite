@@ -31,7 +31,7 @@ from eval_suite.benchmark.result import (
     _EvalResultGroups,
 )
 from eval_suite.benchmark.schema import EvalID, EvalInputBase, EvalOutputBase
-from eval_suite.benchmark.stat._base import BaseStat
+from eval_suite.benchmark.stat._base import BaseStat, EvalStatBase
 from eval_suite.benchmark.utils import method_resolve
 from eval_suite.client import ClientBase, Message
 
@@ -79,7 +79,7 @@ class BenchmarkBase[
     Input: EvalInputBase,
     Output: EvalOutputBase,
     Result: EvalResultBase,
-    Stat: BaseModel,
+    Stat: EvalStatBase,
     Config: BaseEvalConfig,
 ](BaseModel, ABC):
     dataset: Sequence[Any]

@@ -3,7 +3,7 @@ from .base import BenchmarkBase
 from .config import BaseEvalConfig
 from .result import EvalResultBase, EvalResultGroups
 from .schema import EvalInputBase, EvalOutputBase
-from .stat._base import BaseStat
+from .stat._base import BaseStat, EvalStatBase
 
 __all__ = [
     "metric",
@@ -15,4 +15,5 @@ __all__ = [
     "EvalResultBase",
     "EvalResultGroups",
     "BaseStat",
+    "EvalStatBase",
 ]

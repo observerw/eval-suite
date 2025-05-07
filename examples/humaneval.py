@@ -4,9 +4,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
-
-from eval_suite.benchmark import BaseStat, EvalInputBase, EvalResultGroups
+from eval_suite.benchmark import BaseStat, EvalInputBase, EvalResultGroups, EvalStatBase
 from eval_suite.benchmark.metric import passk
 from eval_suite.client import BaseClientConfig, Message
 from eval_suite.client.sglang import EvalServerArgs, SGLangClient, SGLangSamplingParams
@@ -79,7 +77,7 @@ EvalOutput = passk.EvalOutput
 EvalResult = passk.EvalResult
 
 
-class EvalStat(BaseModel):
+class EvalStat(EvalStatBase):
     base: BaseStat
     passk: passk.PassKStat
 

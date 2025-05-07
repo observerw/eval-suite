@@ -4,10 +4,13 @@ from typing import Self
 from pydantic import BaseModel, Field
 
 from eval_suite.benchmark.result import _EvalResultGroups
-from eval_suite.benchmark.schema import EvalSchema
 
 
-class BaseStat(EvalSchema):
+class EvalStatBase(BaseModel):
+    model_config = {"frozen": True}
+
+
+class BaseStat(EvalStatBase):
     """Some basic statistics of the evaluation results."""
 
     class ResultItem(BaseModel):

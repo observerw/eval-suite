@@ -3,14 +3,13 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
-
 from eval_suite.benchmark import (
     BaseEvalConfig,
     BenchmarkBase,
     EvalInputBase,
     EvalOutputBase,
     EvalResultBase,
+    EvalStatBase,
 )
 from eval_suite.benchmark.stat.score import ScoreStat
 from eval_suite.client import ClientBase
@@ -27,7 +26,7 @@ class EvalResult(EvalResultBase):
 JudgeScoreStat = ScoreStat
 
 
-class Benchmark[Input: EvalInputBase, Stat: BaseModel](
+class Benchmark[Input: EvalInputBase, Stat: EvalStatBase](
     BenchmarkBase[Input, EvalOutput, EvalResult, Stat, BaseEvalConfig]
 ):
     def __init__(
