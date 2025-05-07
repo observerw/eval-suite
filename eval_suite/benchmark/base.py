@@ -565,6 +565,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         uncached_results = await self._ben._to_result_batch_impl(uncached_ctx_batch)
 
         for ctx, result in zip(uncached_ctx_batch, uncached_results):
+            ctx.eval_path.mkdir(parents=True, exist_ok=True)
             cache = self._cache_pool[ctx.eval_id]
             cache.result = result
             self._cache_pool.update(cache)
