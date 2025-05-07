@@ -13,7 +13,8 @@ class EvalID(BaseModel):
     """Number of the sample in repeated evaluation"""
 
     def __str__(self) -> str:
-        return f"{self.input_id}-{self.sample_id}"
+        input_id = self.input_id.replace("/", "_")  # avoids path separator issues
+        return f"{input_id}-{self.sample_id}"
 
     def __hash__(self) -> int:
         return hash(str(self))
