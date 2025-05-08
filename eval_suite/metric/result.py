@@ -54,15 +54,12 @@ class ExceptionEvalResult(_EvalResultBase):
         return cls(type=exc.type, message=exc.message)
 
 
-# type EvalResultGroups[Result: EvalResultBase] = Mapping[InputID, Sequence[Result]]
-
-
 class EvalResultGroups[Result: EvalResultBase](dict[InputID, list[Result]]):
-    def map[T: EvalResultBase](
+    def extract[T: EvalResultBase](
         self,
         callable: Callable[[Result], T],
     ) -> "EvalResultGroups[T]":
-        """Apply a function to the results and return a new EvalResultGroups"""
+        """Extract subgroups of results from the current group."""
 
         return EvalResultGroups[T](
             {

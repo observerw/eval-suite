@@ -1,9 +1,9 @@
 import asyncio as aio
 from collections.abc import Sequence
+from functools import cached_property
 from pathlib import Path
 
-from tokenizers import Tokenizer
-from transformers import AutoTokenizer
+from transformers.models.auto.tokenization_auto import AutoTokenizer
 
 from eval_suite import (
     BaseEvalConfig,
@@ -49,7 +49,11 @@ class ThinkingTokenBenchmark(
 ):
     eval_config: EvalConfig = EvalConfig()
 
-    tokenizer: Tokenizer
+    tokenizer_path: Path
+
+    @cached_property
+    def tokenizer(self):
+        return AutoTokenizer.from_pretrained(self.tokenizer_path)
 
     def to_output(self, generation: Message, input: EvalInput) -> EvalOutput:
         if not (thinking := generation.reasoning_content):
@@ -62,7 +66,7 @@ class ThinkingTokenBenchmark(
         args: Sequence[ToResultArgs[EvalInput, EvalOutput]],
     ) -> Sequence[EvalResult | BaseException]:
         contents = [output.content for _, _, output in args]
-        tokenized = self.tokenizer.encode_batch(contents)
+        tokenized = self.tokenizer(contents)
 
         return [
             EvalResult(content=content, length=len(tokenized.input_ids))
@@ -91,17 +95,18 @@ class ThinkingTokenBenchmark(
 
 async def main():
     dataset = load_repo_dataset("openai/openai_humaneval", split="test")
-    tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-4B")
+    model_path = Path("Qwen/Qwen3-4B")
+    output_path = Path("output")
 
     with (
         ThinkingTokenBenchmark(
             dataset=dataset.to_list(),
-            tokenizer=tokenizer,
-            base_path=Path("output"),
+            tokenizer_path=model_path,
+            base_path=output_path,
         ) as benchmark,
         SGLangClient(
             server_args=EvalServerArgs(
-                model_path="Qwen/Qwen3-4B",
+                model_path=str(model_path),
                 dp_size=4,
                 tp_size=2,
             ),

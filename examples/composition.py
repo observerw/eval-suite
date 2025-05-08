@@ -132,11 +132,11 @@ class CompBenchmark(
         return EvalStat(
             base=base,
             passk=pass_k.Stat.from_groups(
-                groups=groups.map(lambda r: r.pass_k),
+                groups=groups.extract(lambda r: r.pass_k),
                 k=self.eval_config.pass_k.k,
             ),
             score=score.Stat.from_groups(
-                groups=groups.map(lambda r: r.score),
+                groups=groups.extract(lambda r: r.score),
             ),
         )
 

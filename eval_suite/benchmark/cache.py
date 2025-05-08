@@ -61,7 +61,7 @@ class EvalCache[Output: EvalOutputBase, Result: EvalResultBase](BaseModel):
 class EvalCachePool(BaseModel):
     type _EvalCache = EvalCache[EvalOutputBase, EvalResultBase]
 
-    cache_schema: type[EvalCache]
+    cache_schema: type[EvalCache]  # Cache with concrete types
     base_path: Path
 
     _lookup: dict[EvalID, _EvalCache] = {}

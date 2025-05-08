@@ -2,16 +2,15 @@ from collections.abc import Sequence
 from typing import Self
 
 import numpy as np
-from pydantic import BaseModel, RootModel
 
-from eval_suite import EvalResultBase, EvalResultGroups
+from eval_suite import EvalResultBase, EvalResultGroups, EvalStatBase
 
 
 class EvalResult(EvalResultBase):
     score: float
 
 
-class Stat(BaseModel):
+class Stat(EvalStatBase):
     scores: list[float]
 
     avg: float
@@ -42,13 +41,13 @@ class Stat(BaseModel):
         )
 
 
-class GroupStat(RootModel):
-    root: dict[str, Stat]
+class GroupStat(EvalStatBase):
+    groups: dict[str, Stat]
 
     @classmethod
     def from_groups(cls, groups: EvalResultGroups[EvalResult]) -> Self:
         return cls(
-            root={
+            groups={
                 str(id): Stat.from_group(group)  #
                 for id, group in groups.items()
             }
