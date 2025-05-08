@@ -1,5 +1,4 @@
 import json
-from abc import ABC
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
@@ -32,11 +31,11 @@ class TypeWrapper[T](RootModel[T]):
         return cls.model_validate(value).root
 
 
-def method_resolve[Base: ABC](
+def resolve_methods(
     cls: type[Any],
-    methods: Sequence[str],
+    order: Sequence[str],
     *,
-    base: type[Base] | None = None,
+    base: type[Any] | None = None,
 ) -> str | None:
     """Get the first implemented method according to the mro."""
 
@@ -48,7 +47,7 @@ def method_resolve[Base: ABC](
         if override_method := next(
             (
                 method  #
-                for method in methods
+                for method in order
                 if method in cls.__dict__
             ),
             None,

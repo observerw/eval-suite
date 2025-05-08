@@ -34,6 +34,17 @@ class BenchmarkConfig(BaseModel):
     - `benchmark-first`: The output directory will be `<base_path>/<benchmark_name>/<model_name>`.
     """
 
+    exception_level: Literal["strict", "standard", "ignore"] = "standard"
+    """
+    TODO The level of exception handling.
+
+    Strict level will raise exceptions early, but requires you to handle corner cases manually; Ignore level guarantees that the evaluation will continue, but problems may be hidden and lead to unexpected results.
+
+    - `strict`: Any unexpected exception will be raised and the evaluation will be stopped.
+    - `standard`: Some exceptions will be raised while most will be recorded as results.
+    - `ignore`: All exceptions will be ignored and the evaluation will continue.
+    """
+
     overwrite: bool = False
     """Whether to overwrite existing results when `stat_file` already exists"""
 

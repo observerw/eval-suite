@@ -1,5 +1,5 @@
-from collections.abc import Mapping, Sequence
-from typing import Literal, Self, cast
+from collections.abc import Callable
+from typing import Literal, Self
 
 from pydantic import PrivateAttr, RootModel, SerializeAsAny
 
@@ -44,7 +44,22 @@ class ExceptionEvalResult(_EvalResultBase):
         return cls(type=exc.type, message=exc.message)
 
 
-type EvalResultGroups[Result: EvalResultBase] = Mapping[InputID, Sequence[Result]]
+# type EvalResultGroups[Result: EvalResultBase] = Mapping[InputID, Sequence[Result]]
+
+
+class EvalResultGroups[Result: EvalResultBase](dict[InputID, list[Result]]):
+    def map[T: EvalResultBase](
+        self,
+        callable: Callable[[Result], T],
+    ) -> "EvalResultGroups[T]":
+        """Apply a function to the results and return a new EvalResultGroups"""
+
+        return EvalResultGroups[T](
+            {
+                input_id: [callable(result) for result in results]
+                for input_id, results in self.items()
+            }
+        )
 
 
 class _EvalResultGroups(RootModel[dict[InputID, list[_EvalResultBase]]]):
@@ -52,12 +67,17 @@ class _EvalResultGroups(RootModel[dict[InputID, list[_EvalResultBase]]]):
     root: dict[InputID, list[SerializeAsAny[_EvalResultBase]]] = {}
 
     _config: BaseEvalConfig = PrivateAttr()
-    _exc_result_count: int = PrivateAttr(default=0)
-    """Extra result count, for tqdm total count"""
+    _extra_count: int = PrivateAttr(default=0)
+
+    @property
+    def extra_count(self) -> int:
+        """Extra result count, for tqdm total count"""
+
+        return self._extra_count
 
     def add_result(self, result: _EvalResultBase):
         if isinstance(result, ExceptionEvalResult):
-            self._exc_result_count += 1
+            self._extra_count += 1
 
         self.root.setdefault(result._input_id, []).append(result)
 
@@ -74,16 +94,17 @@ class _EvalResultGroups(RootModel[dict[InputID, list[_EvalResultBase]]]):
 
         return result_count >= self._config.n_samples
 
-    @property
-    def stat[Result: EvalResultBase](self) -> EvalResultGroups[Result]:
+    def stat(self) -> EvalResultGroups[EvalResultBase]:
         """Filter out incomplete and exception results"""
 
-        return {
-            input_id: [
-                cast(Result, result)  #
-                for result in results
-                if isinstance(result, EvalResultBase)
-            ]
-            for input_id, results in self.root.items()
-            if self.is_completed(input_id)
-        }
+        return EvalResultGroups(
+            {
+                input_id: [
+                    result  #
+                    for result in results
+                    if isinstance(result, EvalResultBase)
+                ]
+                for input_id, results in self.root.items()
+                if self.is_completed(input_id)
+            }
+        )

@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, NotRequired, Self, TypedDict, Unpack
 
 import pydantic
 from pydantic import BaseModel, Field, PrivateAttr
@@ -8,6 +8,12 @@ from pydantic import BaseModel, Field, PrivateAttr
 from eval_suite.benchmark.result import EvalResultBase, ExceptionEvalResult
 from eval_suite.benchmark.schema import EvalID, EvalOutputBase
 from eval_suite.client import Message
+
+
+class EvalCacheDict(TypedDict):
+    gen: NotRequired[Message | None]
+    output: NotRequired[EvalOutputBase | None]
+    result: NotRequired[EvalResultBase | ExceptionEvalResult | None]
 
 
 class EvalCache[Output: EvalOutputBase, Result: EvalResultBase](BaseModel):
@@ -53,12 +59,14 @@ class EvalCache[Output: EvalOutputBase, Result: EvalResultBase](BaseModel):
 
 
 class EvalCachePool(BaseModel):
+    type _EvalCache = EvalCache[EvalOutputBase, EvalResultBase]
+
     cache_schema: type[EvalCache]
     base_path: Path
 
-    _lookup: dict[EvalID, EvalCache] = {}
+    _lookup: dict[EvalID, _EvalCache] = {}
 
-    def __getitem__(self, eval_id: EvalID) -> EvalCache:
+    def __getitem__(self, eval_id: EvalID) -> _EvalCache:
         if cache := self._lookup.get(eval_id):
             assert cache._eval_id == eval_id
             return cache
@@ -72,8 +80,19 @@ class EvalCachePool(BaseModel):
         self._lookup[eval_id] = cache
         return cache
 
-    def update(self, cache: EvalCache):
+    def update(self, cache: _EvalCache):
         assert cache._eval_id
 
         self._lookup[cache._eval_id] = cache
         cache.dump(self.base_path / str(cache._eval_id))
+
+    def update_field(self, eval_id: EvalID, **kwargs: Unpack[EvalCacheDict]):
+        cache = self[eval_id]
+
+        for key, value in kwargs.items():
+            if not hasattr(cache, key):
+                continue
+
+            setattr(cache, key, value)
+
+        self.update(cache)
