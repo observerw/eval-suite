@@ -1,9 +1,13 @@
+import asyncio as aio
 from collections.abc import Sequence
+from pathlib import Path
 
 from tokenizers import Tokenizer
+from transformers import AutoTokenizer
 
 from eval_suite.benchmark import (
     BaseEvalConfig,
+    BaseStat,
     BenchmarkBase,
     EvalInputBase,
     EvalOutputBase,
@@ -12,8 +16,9 @@ from eval_suite.benchmark import (
     EvalStatBase,
     ToResultArgs,
 )
-from eval_suite.benchmark.stat._base import BaseStat
-from eval_suite.client import Message
+from eval_suite.client import BaseClientConfig, Message
+from eval_suite.client.sglang import EvalServerArgs, SGLangClient, SGLangSamplingParams
+from eval_suite.utils.dataset import load_repo_dataset
 
 
 class EvalInput(EvalInputBase):
@@ -42,6 +47,8 @@ class EvalConfig(BaseEvalConfig):
 class ThinkingTokenBenchmark(
     BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat, EvalConfig]
 ):
+    eval_config: EvalConfig = EvalConfig()
+
     tokenizer: Tokenizer
 
     def to_output(self, generation: Message, input: EvalInput) -> EvalOutput:
@@ -50,7 +57,7 @@ class ThinkingTokenBenchmark(
 
         return EvalOutput(content=thinking)
 
-    def to_result_batch(
+    def to_result_batch_sync(
         self,
         args: Sequence[ToResultArgs[EvalInput, EvalOutput]],
     ) -> Sequence[EvalResult | BaseException]:
@@ -58,10 +65,7 @@ class ThinkingTokenBenchmark(
         tokenized = self.tokenizer.encode_batch(contents)
 
         return [
-            EvalResult(
-                content=content,
-                length=len(tokenized.input_ids),
-            )
+            EvalResult(content=content, length=len(tokenized.input_ids))
             for content, tokenized in zip(contents, tokenized)
         ]
 
@@ -86,4 +90,36 @@ class ThinkingTokenBenchmark(
 
 
 async def main():
-    pass
+    dataset = load_repo_dataset("openai/openai_humaneval", split="test")
+    tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-4B")
+
+    with (
+        ThinkingTokenBenchmark(
+            dataset=dataset.to_list(),
+            tokenizer=tokenizer,
+            base_path=Path("output"),
+        ) as benchmark,
+        SGLangClient(
+            server_args=EvalServerArgs(
+                model_path="Qwen/Qwen3-4B",
+                dp_size=4,
+                tp_size=2,
+            ),
+            sampling_params=SGLangSamplingParams(
+                temperature=0.7,
+                top_p=0.8,
+                max_new_tokens=8192,
+                repetition_penalty=1.05,
+                top_k=20,
+            ),
+            config=BaseClientConfig(
+                batch_size=2048,
+            ),
+        ) as client,
+    ):
+        stat = await benchmark.run(client)
+        print(stat)
+
+
+if __name__ == "__main__":
+    aio.run(main())

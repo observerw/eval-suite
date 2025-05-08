@@ -3,7 +3,7 @@ from typing import Self, override
 
 from pydantic import BaseModel, SecretStr
 
-from eval_suite.benchmark import BaseStat, EvalStatBase
+from eval_suite.benchmark import BaseStat, BenchmarkBase, EvalOutputBase, EvalStatBase
 from eval_suite.benchmark.metric import pass_k
 from eval_suite.benchmark.result import EvalResultGroups
 from eval_suite.benchmark.schema import EvalInputBase
@@ -34,15 +34,23 @@ class EvalInput(EvalInputBase):
         raise NotImplementedError
 
 
+class EvalOutput(EvalOutputBase):
+    code: str
+
+
 EvalResult = pass_k.EvalResult
 
 
 class EvalStat(EvalStatBase):
     base: BaseStat
-    passk: pass_k.PassKStat
+    passk: pass_k.Stat
 
 
-class LiveCodeBenchmark(pass_k.Benchmark[EvalInput, EvalStat]):
+class LiveCodeBenchmark(
+    BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat, pass_k.EvalConfig]
+):
+    eval_config: pass_k.EvalConfig = pass_k.EvalConfig()
+
     @override
     def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:
         raise NotImplementedError
