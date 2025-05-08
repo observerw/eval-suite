@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from pathlib import Path
 
 from tokenizers import Tokenizer
 
@@ -11,6 +10,7 @@ from eval_suite.benchmark import (
     EvalResultBase,
     EvalResultGroups,
     EvalStatBase,
+    ToResultArgs,
 )
 from eval_suite.benchmark.stat._base import BaseStat
 from eval_suite.client import Message
@@ -30,36 +30,17 @@ class EvalResult(EvalResultBase):
 
 
 class EvalStat(EvalStatBase):
+    base: BaseStat
     avg_token_length: float
     token_count: dict[str, int]
 
-    @classmethod
-    def from_groups(cls, groups: EvalResultGroups[EvalResult]):
-        results = [result for group in groups.values() for result in group]
 
-        avg_token_length = (
-            sum(result.length for result in results) / len(results) if results else 0
-        )
-
-        token_count = {}
-        for result in results:
-            for token in result.content.split():
-                token_count[token] = token_count.setdefault(token, 0) + 1
-
-        return cls(
-            avg_token_length=avg_token_length,
-            token_count=token_count,
-        )
+class EvalConfig(BaseEvalConfig):
+    pass
 
 
 class ThinkingTokenBenchmark(
-    BenchmarkBase[
-        EvalInput,
-        EvalOutput,
-        EvalResult,
-        EvalStat,
-        BaseEvalConfig,
-    ]
+    BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat, EvalConfig]
 ):
     tokenizer: Tokenizer
 
@@ -71,11 +52,9 @@ class ThinkingTokenBenchmark(
 
     def to_result_batch(
         self,
-        eval_paths: Sequence[Path],
-        inputs: Sequence[EvalInput],
-        outputs: Sequence[EvalOutput],
+        args: Sequence[ToResultArgs[EvalInput, EvalOutput]],
     ) -> Sequence[EvalResult | BaseException]:
-        contents = [output.content for output in outputs]
+        contents = [output.content for _, _, output in args]
         tokenized = self.tokenizer.encode_batch(contents)
 
         return [
@@ -93,12 +72,14 @@ class ThinkingTokenBenchmark(
             sum(result.length for result in results) / len(results) if results else 0
         )
 
-        token_count: dict[str, int] = {}
-        for result in results:
-            for token in result.content.split():
-                token_count[token] = token_count.setdefault(token, 0) + 1
+        token_count = {
+            token: sum(result.content.count(token) for result in results)
+            for result in results
+            for token in result.content.split()
+        }
 
         return EvalStat(
+            base=base,
             avg_token_length=avg_token_length,
             token_count=token_count,
         )
