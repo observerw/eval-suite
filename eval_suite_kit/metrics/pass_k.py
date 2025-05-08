@@ -4,13 +4,14 @@ from typing import Self
 import numpy as np
 from pydantic import Field, model_validator
 
-from eval_suite.benchmark import (
+from eval_suite import (
     BaseEvalConfig,
+    BaseEvalResultType,
+    EvalException,
     EvalResultBase,
     EvalResultGroups,
     EvalStatBase,
 )
-from eval_suite.exception import BaseEvalResultType, EvalException
 
 
 class EvalConfig(BaseEvalConfig):

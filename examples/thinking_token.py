@@ -5,7 +5,7 @@ from pathlib import Path
 from tokenizers import Tokenizer
 from transformers import AutoTokenizer
 
-from eval_suite.benchmark import (
+from eval_suite import (
     BaseEvalConfig,
     BaseStat,
     BenchmarkBase,

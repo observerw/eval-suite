@@ -1,14 +1,8 @@
 import json
-from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
 from pydantic import RootModel
-
-
-def set_value(attr: str, value: Any, rets: Iterable[Any]):
-    for ret in rets:
-        setattr(ret, attr, value)
 
 
 class TypeWrapper[T](RootModel[T]):
@@ -29,30 +23,6 @@ class TypeWrapper[T](RootModel[T]):
     @classmethod
     def create(cls, value: Any) -> T:
         return cls.model_validate(value).root
-
-
-def resolve_methods(
-    cls: type[Any],
-    order: Sequence[str],
-    *,
-    base: type[Any] | None = None,
-) -> str | None:
-    """Get the first implemented method according to the mro."""
-
-    for cls in cls.mro():
-        # only check subclass of `Base`
-        if base and not issubclass(cls, base):
-            continue
-
-        if override_method := next(
-            (
-                method  #
-                for method in order
-                if method in cls.__dict__
-            ),
-            None,
-        ):
-            return override_method
 
 
 def dump_json(data: dict, path: Path):

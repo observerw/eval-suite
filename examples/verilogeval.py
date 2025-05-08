@@ -4,7 +4,7 @@ from enum import Enum
 from pathlib import Path
 from typing import override
 
-from eval_suite.benchmark import (
+from eval_suite import (
     BaseStat,
     BenchmarkBase,
     EvalInputBase,
@@ -12,13 +12,13 @@ from eval_suite.benchmark import (
     EvalResultGroups,
     EvalStatBase,
 )
-from eval_suite.benchmark.metric import pass_k
 from eval_suite.client import BaseClientConfig, Message
 from eval_suite.client.sglang import EvalServerArgs, SGLangClient, SGLangSamplingParams
 from eval_suite.command import CommandBase, Process
 from eval_suite.exception import EvalException
 from eval_suite.utils.dataset import load_repo_dataset
 from eval_suite.utils.extract import extract_code
+from eval_suite_kit.metrics import pass_k
 
 logging.basicConfig(
     level=logging.INFO,

@@ -1,12 +1,16 @@
 from abc import abstractmethod
 from pathlib import Path
 
-from eval_suite.benchmark import EvalResultBase, EvalStatBase
-from eval_suite.benchmark.base import BenchmarkBase
-from eval_suite.benchmark.config import BaseEvalConfig
-from eval_suite.benchmark.metric.score import Stat
-from eval_suite.benchmark.schema import EvalInputBase, EvalOutputBase
+from eval_suite import (
+    BaseEvalConfig,
+    BenchmarkBase,
+    EvalInputBase,
+    EvalOutputBase,
+    EvalResultBase,
+    EvalStatBase,
+)
 from eval_suite.client.base import Message
+from eval_suite_kit.metrics import score
 
 
 class EvalInput(EvalInputBase):
@@ -69,7 +73,7 @@ def bleu(reference: str, generation: str) -> float:
     return bleu_score
 
 
-BleuStat = Stat
+BleuStat = score.Stat
 
 
 class BleuBenchmark[Input: EvalInput, Stat: EvalStatBase](

@@ -4,7 +4,7 @@ from typing import Self
 import numpy as np
 from pydantic import BaseModel, RootModel
 
-from eval_suite.benchmark import EvalResultBase, EvalResultGroups
+from eval_suite import EvalResultBase, EvalResultGroups
 
 
 class EvalResult(EvalResultBase):

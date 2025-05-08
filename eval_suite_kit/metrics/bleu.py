@@ -3,7 +3,7 @@ from typing import Any, Self, override
 import numpy as np
 from pydantic import computed_field
 
-from eval_suite.benchmark import EvalResultBase, EvalResultGroups, EvalStatBase
+from eval_suite import EvalResultBase, EvalResultGroups, EvalStatBase
 
 
 def bleu(reference: str, generation: str) -> float:
@@ -61,7 +61,7 @@ class EvalResult(EvalResultBase):
 
     @override
     def model_post_init(self, context: Any) -> None:
-        # init on creation
+        # init score on creation
         _ = self.bleu_score
 
 

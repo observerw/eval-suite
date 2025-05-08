@@ -1,4 +1,4 @@
-from eval_suite.benchmark.schema import BaseModel
+from eval_suite.metric.schema import BaseModel
 
 
 class BaseClientConfig(BaseModel):

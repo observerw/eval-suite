@@ -5,9 +5,9 @@ from typing import Any, NotRequired, Self, TypedDict, Unpack
 import pydantic
 from pydantic import BaseModel, Field, PrivateAttr
 
-from eval_suite.benchmark.result import EvalResultBase, ExceptionEvalResult
-from eval_suite.benchmark.schema import EvalID, EvalOutputBase
 from eval_suite.client import Message
+from eval_suite.metric.result import EvalResultBase, ExceptionEvalResult
+from eval_suite.metric.schema import EvalID, EvalOutputBase
 
 
 class EvalCacheDict(TypedDict):

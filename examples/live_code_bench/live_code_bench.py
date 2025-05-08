@@ -3,12 +3,17 @@ from typing import Self, override
 
 from pydantic import BaseModel, SecretStr
 
-from eval_suite.benchmark import BaseStat, BenchmarkBase, EvalOutputBase, EvalStatBase
-from eval_suite.benchmark.metric import pass_k
-from eval_suite.benchmark.result import EvalResultGroups
-from eval_suite.benchmark.schema import EvalInputBase
+from eval_suite import (
+    BaseStat,
+    BenchmarkBase,
+    EvalInputBase,
+    EvalOutputBase,
+    EvalResultGroups,
+    EvalStatBase,
+)
 from eval_suite.client.openai import OpenAIClient
 from eval_suite.utils.dataset import load_dataset
+from eval_suite_kit.metrics import pass_k
 
 
 class EvalInput(EvalInputBase):
