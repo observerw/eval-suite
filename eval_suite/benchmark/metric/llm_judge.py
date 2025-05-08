@@ -1,6 +1,5 @@
 from abc import abstractmethod
 from collections.abc import Sequence
-from pathlib import Path
 
 from eval_suite.benchmark import (
     BaseEvalConfig,
@@ -9,8 +8,8 @@ from eval_suite.benchmark import (
     EvalOutputBase,
     EvalResultBase,
     EvalStatBase,
+    ToResultArgs,
 )
-from eval_suite.benchmark.stat.score import ScoreStat
 from eval_suite.client import ClientBase
 
 
@@ -22,33 +21,24 @@ class EvalResult(EvalResultBase):
     score: float
 
 
-JudgeScoreStat = ScoreStat
-
-
 class Benchmark[Input: EvalInputBase, Stat: EvalStatBase](
     BenchmarkBase[Input, EvalOutput, EvalResult, Stat, BaseEvalConfig]
 ):
+    """
+    Benchmark using an LLM to evaluate the model output.
+
+    Args:
+        judge: ClientBase
+            Judge client to evaluate the model
+
+    Implemented:
+        to_result:
+            Judge the given content and return a score.
+    """
+
     eval_config: BaseEvalConfig = BaseEvalConfig()
     judge: ClientBase
     """Judge client to evaluate the model output"""
-
-    # def __init__(
-    #     self,
-    #     dataset: Sequence[Any],
-    #     judge: ClientBase,
-    #     *,
-    #     name: str = "llm_judge",
-    #     config: BaseEvalConfig = BaseEvalConfig(),
-    #     base_path: Path | None = None,
-    # ):
-    #     super().__init__(
-    #         dataset=dataset,
-    #         name=name,
-    #         eval_config=config,
-    #         base_path=base_path,
-    #     )
-
-    #     self._judge = judge
 
     @abstractmethod
     def to_judge_result(self, content: str) -> EvalResult:
@@ -56,11 +46,9 @@ class Benchmark[Input: EvalInputBase, Stat: EvalStatBase](
 
     async def to_result_batch_async(
         self,
-        eval_paths: Sequence[Path],
-        inputs: Sequence[Input],
-        outputs: Sequence[EvalOutput],
+        args: Sequence[ToResultArgs[Input, EvalOutput]],
     ) -> Sequence[EvalResult | BaseException]:
-        contents = [output.content for output in outputs]
+        contents = [output.content for _, _, output in args]
         msgs = await self.judge.generate(
             contents,
             system_prompt=self.eval_config.system_prompt,

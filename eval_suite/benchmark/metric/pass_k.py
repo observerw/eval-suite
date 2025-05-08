@@ -2,18 +2,14 @@ from dataclasses import dataclass
 from typing import Self
 
 import numpy as np
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 from eval_suite.benchmark import (
     BaseEvalConfig,
-    BenchmarkBase,
-    EvalInputBase,
-    EvalOutputBase,
     EvalResultBase,
     EvalResultGroups,
     EvalStatBase,
 )
-from eval_suite.client import Message
 from eval_suite.exception import BaseEvalResultType, EvalException
 
 
@@ -34,16 +30,9 @@ class EvalConfig(BaseEvalConfig):
         return self
 
 
-class EvalOutput(EvalOutputBase):
-    code: str
-    """The code to execute"""
-
-
 class EvalResult(EvalResultBase):
     passed: bool = True
     """Whether the code passed the unit test"""
-
-    type: str = BaseEvalResultType.success
 
     @classmethod
     def from_exception(cls, exc: EvalException) -> Self:
@@ -80,12 +69,12 @@ class _EvalResultGroup:
         return pass_k(n=self.n, c=self.c, k=k)
 
 
-class PassKStat(BaseModel):
+class Stat(EvalStatBase):
     k: int
     pass_n: dict[str, float]
 
     @classmethod
-    def from_groups(cls, groups: EvalResultGroups[EvalResult], k: int) -> Self:
+    def from_groups[T: EvalResult](cls, groups: EvalResultGroups[T], *, k: int) -> Self:
         all_groups = [_EvalResultGroup(root=list(group)) for group in groups.values()]
         pass_n = {
             f"pass@{n}": float(np.mean([group.pass_k(k=n) for group in all_groups]))
@@ -93,12 +82,3 @@ class PassKStat(BaseModel):
         }
 
         return cls(k=k, pass_n=pass_n)
-
-
-class Benchmark[Input: EvalInputBase, Stat: EvalStatBase](
-    BenchmarkBase[Input, EvalOutput, EvalResult, Stat, EvalConfig]
-):
-    eval_config: EvalConfig = EvalConfig()
-
-    def to_output(self, generation: Message, input: Input) -> EvalOutput:
-        return EvalOutput(code=generation.content)

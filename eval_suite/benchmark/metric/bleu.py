@@ -1,29 +1,9 @@
-from abc import abstractmethod
-from pathlib import Path
+from typing import Any, Self, override
 
-from eval_suite.benchmark import EvalResultBase, EvalStatBase
-from eval_suite.benchmark.base import BenchmarkBase
-from eval_suite.benchmark.config import BaseEvalConfig
-from eval_suite.benchmark.schema import EvalInputBase, EvalOutputBase
-from eval_suite.benchmark.stat.score import ScoreStat
-from eval_suite.client.base import Message
+import numpy as np
+from pydantic import computed_field
 
-
-class EvalInput(EvalInputBase):
-    @property
-    @abstractmethod
-    def _reference(self) -> str:
-        """The reference text to compare against."""
-
-
-class EvalOutput(EvalOutputBase):
-    generation: str
-    """Generated text to evaluate against the reference text."""
-
-
-class EvalResult(EvalResultBase):
-    score: float
-    """The BLEU score of the generated text compared to the reference text."""
+from eval_suite.benchmark import EvalResultBase, EvalResultGroups, EvalStatBase
 
 
 def bleu(reference: str, generation: str) -> float:
@@ -69,21 +49,33 @@ def bleu(reference: str, generation: str) -> float:
     return bleu_score
 
 
-BleuStat = ScoreStat
+class EvalResult(EvalResultBase):
+    reference: str
+    generation: str
+
+    @computed_field
+    def bleu_score(self) -> float:
+        """Calculate the BLEU score for the result."""
+
+        return bleu(self.reference, self.generation)
+
+    @override
+    def model_post_init(self, context: Any) -> None:
+        # init on creation
+        _ = self.bleu_score
 
 
-class BleuBenchmark[Input: EvalInput, Stat: EvalStatBase](
-    BenchmarkBase[Input, EvalOutput, EvalResult, Stat, BaseEvalConfig]
-):
-    def to_output(self, generation: Message, input: Input) -> EvalOutput:
-        return EvalOutput(generation=generation.content)
+class Stat[Result: EvalResult](EvalStatBase):
+    avg_bleu_score: float
 
-    def to_result(
-        self,
-        eval_path: Path,
-        input: Input,
-        output: EvalOutput,
-    ) -> EvalResult:
-        reference = input._reference
-        score = bleu(reference, output.generation)
-        return EvalResult(score=score)
+    @classmethod
+    def from_groups(cls, groups: EvalResultGroups[Result]) -> Self:
+        """Calculate the average BLEU score from the groups of results."""
+
+        bleu_scores = [
+            bleu(result.reference, result.generation)
+            for group in groups.values()
+            for result in group
+        ]
+        avg_bleu_score = float(np.mean(bleu_scores)) if bleu_scores else 0.0
+        return cls(avg_bleu_score=avg_bleu_score)

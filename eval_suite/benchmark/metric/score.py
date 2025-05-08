@@ -7,7 +7,11 @@ from pydantic import BaseModel, RootModel
 from eval_suite.benchmark import EvalResultBase, EvalResultGroups
 
 
-class ScoreStat(BaseModel):
+class EvalResult(EvalResultBase):
+    score: float
+
+
+class Stat(BaseModel):
     scores: list[float]
 
     avg: float
@@ -18,7 +22,9 @@ class ScoreStat(BaseModel):
     total: int
 
     @classmethod
-    def from_scores(cls, scores: Sequence[float]) -> Self:
+    def from_group(cls, group: Sequence[EvalResult]) -> Self:
+        scores = [result.score for result in group]
+
         return cls(
             scores=[float(score) for score in scores],
             avg=float(np.mean(scores)),
@@ -30,34 +36,20 @@ class ScoreStat(BaseModel):
         )
 
     @classmethod
-    def from_groups[T: EvalResultBase](
-        cls,
-        groups: EvalResultGroups[T],
-        *,
-        score_field: str = "score",
-    ) -> Self:
-        scores = [
-            float(getattr(result, score_field))
-            for group in groups.values()
-            for result in group
-        ]
-
-        return cls.from_scores(scores)
+    def from_groups(cls, groups: EvalResultGroups[EvalResult]) -> Self:
+        return cls.from_group(
+            group=[result for group in groups.values() for result in group]
+        )
 
 
-class GroupScoreStat(RootModel):
-    root: dict[str, ScoreStat]
+class GroupStat(RootModel):
+    root: dict[str, Stat]
 
     @classmethod
-    def from_groups[T: EvalResultBase](
-        cls,
-        groups: EvalResultGroups[T],
-        *,
-        score_field: str = "score",
-    ) -> Self:
+    def from_groups(cls, groups: EvalResultGroups[EvalResult]) -> Self:
         return cls(
             root={
-                str(id): ScoreStat.from_groups(groups=groups, score_field=score_field)
+                str(id): Stat.from_group(group)  #
                 for id, group in groups.items()
             }
         )
