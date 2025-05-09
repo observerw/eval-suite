@@ -1,15 +1,14 @@
 from abc import abstractmethod
 from pathlib import Path
 
-from eval_suite import (
-    BaseEvalConfig,
-    BenchmarkBase,
+from eval_suite.benchmark import BenchmarkBase
+from eval_suite.client.base import Message
+from eval_suite.metric import (
     EvalInputBase,
     EvalOutputBase,
     EvalResultBase,
     EvalStatBase,
 )
-from eval_suite.client.base import Message
 from eval_suite_kit.metrics import score
 
 
@@ -77,7 +76,7 @@ BleuStat = score.Stat
 
 
 class BleuBenchmark[Input: EvalInput, Stat: EvalStatBase](
-    BenchmarkBase[Input, EvalOutput, EvalResult, Stat, BaseEvalConfig]
+    BenchmarkBase[Input, EvalOutput, EvalResult, Stat]
 ):
     def to_output(self, generation: Message, input: Input) -> EvalOutput:
         return EvalOutput(generation=generation.content)

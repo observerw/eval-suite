@@ -1,21 +1,24 @@
 import asyncio as aio
 import logging
+from collections.abc import Iterable
 from enum import Enum
 from pathlib import Path
-from typing import override
+from typing import final, override
 
-from eval_suite import (
-    BaseStat,
-    BenchmarkBase,
-    EvalInputBase,
-    EvalOutputBase,
-    EvalResultGroups,
-    EvalStatBase,
-)
+from eval_suite.benchmark import BenchmarkBase, BenchmarkConfig
 from eval_suite.client import BaseClientConfig, Message
 from eval_suite.client.sglang import EvalServerArgs, SGLangClient, SGLangSamplingParams
 from eval_suite.command import CommandBase, Process
 from eval_suite.exception import EvalException
+from eval_suite.metric import (
+    BaseStat,
+    EvalInputBase,
+    EvalOutputBase,
+    EvalResultBase,
+    EvalResultGroups,
+    EvalStatBase,
+)
+from eval_suite.metric.result import ToResultArgs, ToResultList
 from eval_suite.utils.dataset import load_repo_dataset
 from eval_suite.utils.extract import extract_code
 from eval_suite_kit.metrics import pass_k
@@ -88,7 +91,8 @@ class EvalOutput(EvalOutputBase):
     code: str
 
 
-EvalResult = pass_k.EvalResult
+class EvalResult(EvalResultBase):
+    pass_k: pass_k.EvalResult
 
 
 class EvalStat(EvalStatBase):
@@ -96,30 +100,15 @@ class EvalStat(EvalStatBase):
     passk: pass_k.Stat
 
 
-EvalConfig = pass_k.EvalConfig
-
-
-class VerilogEvalBenchmark(
-    BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat, EvalConfig]
-):
-    def to_output(
-        self,
-        generation: Message[dict],
-        input: EvalInput,
-    ) -> EvalOutput:
-        result = extract_code(generation.content).get("verilog", id="result")
-
-        if not result:
-            raise ValueError("No code found in the generation")
-
-        return EvalOutput(code=result.code)
-
+@final
+class PassKMetric(pass_k.Metric[EvalInput, EvalOutput]):
+    @override
     async def to_result_async(
         self,
         eval_path: Path,
         input: EvalInput,
         output: EvalOutput,
-    ) -> EvalResult:
+    ) -> pass_k.EvalResult:
         (design_path := eval_path / "design.v").write_text(output.code)
         (testbench_path := eval_path / "testbench.v").write_text(input.test)
 
@@ -137,12 +126,33 @@ class VerilogEvalBenchmark(
             cwd=eval_path,
         ).run(exc=EvalException(type=ResultType.simulation_error))
 
-        return EvalResult(passed=True)
+        return pass_k.EvalResult(passed=True)
+
+
+class VerilogEvalBenchmark(BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat]):
+    pass_k_metric: pass_k.Metric
+
+    @override
+    def to_output(self, generation: Message[dict], input: EvalInput) -> EvalOutput:
+        result = extract_code(generation.content).get("verilog", id="result")
+
+        if not result:
+            raise ValueError("No code found in the generation")
+
+        return EvalOutput(code=result.code)
+
+    @override
+    async def to_result(
+        self,
+        args: Iterable[ToResultArgs[EvalInput, EvalOutput]],
+    ) -> ToResultList[EvalResult]:
+        pass_k_results = await self.pass_k_metric.to_result(args)
+        return EvalResult.merge(pass_k=pass_k_results)
 
     def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:
         return EvalStat(
             base=base,
-            passk=pass_k.Stat.from_groups(groups=groups, k=self.eval_config.k),
+            passk=self.pass_k_metric.to_stat(groups.map(lambda r: r.pass_k)),
         )
 
 
@@ -156,12 +166,9 @@ async def main():
         VerilogEvalBenchmark(
             name="verilog-eval",
             dataset=dataset.to_list(),
-            eval_config=pass_k.EvalConfig(
-                k=10,
-                n_samples=20,
-                max_n_samples=40,
-            ),
             base_path=Path("output"),
+            config=BenchmarkConfig(n_samples=10, max_n_samples=20),
+            pass_k_metric=PassKMetric(k=5),
         ) as benchmark,
         SGLangClient(
             server_args=EvalServerArgs(

@@ -1,17 +1,21 @@
 import os
+from collections.abc import Iterable
 from typing import Self, override
 
 from pydantic import BaseModel, SecretStr
 
-from eval_suite import (
+from eval_suite.benchmark import BenchmarkBase
+from eval_suite.client.base import Message
+from eval_suite.client.openai import OpenAIClient
+from eval_suite.metric import (
     BaseStat,
-    BenchmarkBase,
     EvalInputBase,
     EvalOutputBase,
     EvalResultGroups,
     EvalStatBase,
+    ToResultList,
 )
-from eval_suite.client.openai import OpenAIClient
+from eval_suite.metric.result import ToResultArgs
 from eval_suite.utils.dataset import load_dataset
 from eval_suite_kit.metrics import pass_k
 
@@ -51,10 +55,16 @@ class EvalStat(EvalStatBase):
     passk: pass_k.Stat
 
 
-class LiveCodeBenchmark(
-    BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat, pass_k.EvalConfig]
-):
-    eval_config: pass_k.EvalConfig = pass_k.EvalConfig()
+class LiveCodeBenchmark(BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat]):
+    @override
+    def to_output(self, generation: Message, input: EvalInput) -> EvalOutput:
+        raise NotImplementedError
+
+    @override
+    async def to_result(
+        self, args: Iterable[ToResultArgs[EvalInput, EvalOutput]]
+    ) -> ToResultList[EvalResult]:
+        raise NotImplementedError
 
     @override
     def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:

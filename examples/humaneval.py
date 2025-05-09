@@ -1,21 +1,24 @@
 import asyncio as aio
 import logging
+from collections.abc import Iterable, Sequence
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, override
 
-from eval_suite import (
+from eval_suite.benchmark import BenchmarkBase
+from eval_suite.client import BaseClientConfig, Message
+from eval_suite.client.sglang import EvalServerArgs, SGLangClient, SGLangSamplingParams
+from eval_suite.command import CommandBase
+from eval_suite.exception import EvalException
+from eval_suite.metric import (
     BaseStat,
-    BenchmarkBase,
     EvalInputBase,
     EvalOutputBase,
+    EvalResultBase,
     EvalResultGroups,
     EvalStatBase,
 )
-from eval_suite.client import BaseClientConfig, Message
-from eval_suite.client.sglang import EvalServerArgs, SGLangClient, SGLangSamplingParams
-from eval_suite.command import CommandBase, Process
-from eval_suite.exception import EvalException
+from eval_suite.metric.result import ToResultArgs
 from eval_suite.utils.dataset import load_repo_dataset
 from eval_suite.utils.extract import extract_code
 from eval_suite_kit.metrics import pass_k
@@ -35,7 +38,7 @@ class Command(CommandBase):
         code: str,
         cwd: Path | None = None,
         **kwargs,
-    ) -> Process:
+    ):
         return cls.docker_run(
             "python",
             "-c",
@@ -84,7 +87,8 @@ class EvalOutput(EvalOutputBase):
     code: str
 
 
-EvalResult = pass_k.EvalResult
+class EvalResult(EvalResultBase):
+    pass_k: pass_k.EvalResult
 
 
 class EvalStat(EvalStatBase):
@@ -92,9 +96,26 @@ class EvalStat(EvalStatBase):
     passk: pass_k.Stat
 
 
-class HumanEvalBenchmark(
-    BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat, pass_k.EvalConfig]
-):
+class PassKMetric(pass_k.Metric[EvalInput, EvalOutput]):
+    k: int = 5
+
+    @override
+    async def to_result_async(
+        self,
+        eval_path: Path,
+        input: EvalInput,
+        output: EvalOutput,
+    ) -> pass_k.EvalResult:
+        _ = await Command.python(code=output.code, cwd=eval_path).run(
+            exc=EvalException(type=ResultType.functional_error),
+        )
+
+        return pass_k.EvalResult(passed=True)
+
+
+class HumanEvalBenchmark(BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat]):
+    pass_k_metric: pass_k.Metric
+
     def to_input(self, data: Any) -> EvalInput:
         # Convert the raw data into the EvalInput schema.
         # Since `EvalInput` is a `pydantic` model, you can simply use `model_validate` to validate and convert the data.
@@ -117,26 +138,19 @@ class HumanEvalBenchmark(
 
         return EvalOutput(code=result.code)
 
-    async def to_result_async(
+    @override
+    async def to_result(
         self,
-        eval_path: Path,
-        input: EvalInput,
-        output: EvalOutput,
-    ) -> EvalResult:
-        # We need to call external command to evaluate the generated code,
-        # so we choose to implement `to_result_async`.
-        # Here we simply run the code. If no exception is raised, we consider it passed.
-        # If command failed, we will raise a `EvalException` indicating there is a functional error.
-        _ = await Command.python(code=output.code, cwd=eval_path).run(
-            exc=EvalException(type=ResultType.functional_error),
-        )
+        args: Iterable[ToResultArgs[EvalInput, EvalOutput]],
+    ) -> Sequence[EvalResult | BaseException]:
+        pass_k_results = await self.pass_k_metric.to_result(args)
 
-        return pass_k.EvalResult(passed=True)
+        return EvalResult.merge(pass_k=pass_k_results)
 
     def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:
         return EvalStat(
             base=base,
-            passk=pass_k.Stat.from_groups(groups=groups, k=self.eval_config.k),
+            passk=self.pass_k_metric.to_stat(groups.map(lambda r: r.pass_k)),
         )
 
 
@@ -146,12 +160,9 @@ async def main():
     with (
         HumanEvalBenchmark(
             name="human-eval",
-            # remember to turn dataset into a list
             dataset=dataset.to_list(),
-            eval_config=pass_k.EvalConfig(
-                k=5,
-            ),
             base_path=Path("output"),
+            pass_k_metric=PassKMetric(k=5),
         ) as benchmark,
         SGLangClient(
             server_args=EvalServerArgs(

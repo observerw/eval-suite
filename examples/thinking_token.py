@@ -1,23 +1,27 @@
 import asyncio as aio
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from functools import cached_property
 from pathlib import Path
+from typing import override
 
 from transformers.models.auto.tokenization_auto import AutoTokenizer
 
-from eval_suite import (
-    BaseEvalConfig,
+from eval_suite.benchmark import BenchmarkBase
+from eval_suite.client import BaseClientConfig, Message
+from eval_suite.client.sglang import EvalServerArgs, SGLangClient, SGLangSamplingParams
+from eval_suite.metric import (
     BaseStat,
-    BenchmarkBase,
     EvalInputBase,
     EvalOutputBase,
     EvalResultBase,
     EvalResultGroups,
     EvalStatBase,
+    MetricBase,
+    ToResult,
     ToResultArgs,
+    ToResultList,
+    ToStat,
 )
-from eval_suite.client import BaseClientConfig, Message
-from eval_suite.client.sglang import EvalServerArgs, SGLangClient, SGLangSamplingParams
 from eval_suite.utils.dataset import load_repo_dataset
 
 
@@ -34,36 +38,31 @@ class EvalResult(EvalResultBase):
     length: int
 
 
-class EvalStat(EvalStatBase):
-    base: BaseStat
+class ThinkingTokenStat(EvalStatBase):
     avg_token_length: float
     token_count: dict[str, int]
 
 
-class EvalConfig(BaseEvalConfig):
-    pass
+class EvalStat(EvalStatBase):
+    base: BaseStat
+    thinking_token: ThinkingTokenStat
 
 
-class ThinkingTokenBenchmark(
-    BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat, EvalConfig]
+class ThinkingTokenMetric(
+    MetricBase,
+    ToResult[EvalInput, EvalOutput, EvalResult],
+    ToStat[EvalResult, ThinkingTokenStat],
 ):
-    eval_config: EvalConfig = EvalConfig()
-
     tokenizer_path: Path
 
     @cached_property
     def tokenizer(self):
         return AutoTokenizer.from_pretrained(self.tokenizer_path)
 
-    def to_output(self, generation: Message, input: EvalInput) -> EvalOutput:
-        if not (thinking := generation.reasoning_content):
-            raise ValueError("No reasoning content found in the generation")
-
-        return EvalOutput(content=thinking)
-
+    @override
     def to_result_batch_sync(
         self,
-        args: Sequence[ToResultArgs[EvalInput, EvalOutput]],
+        args: Iterable[ToResultArgs[EvalInput, EvalOutput]],
     ) -> Sequence[EvalResult | BaseException]:
         contents = [output.content for _, _, output in args]
         tokenized = self.tokenizer(contents)
@@ -73,7 +72,8 @@ class ThinkingTokenBenchmark(
             for content, tokenized in zip(contents, tokenized)
         ]
 
-    def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:
+    @override
+    def to_stat(self, groups: EvalResultGroups[EvalResult]) -> ThinkingTokenStat:
         results = [result for group in groups.values() for result in group]
 
         avg_token_length = (
@@ -86,10 +86,34 @@ class ThinkingTokenBenchmark(
             for token in result.content.split()
         }
 
-        return EvalStat(
-            base=base,
+        return ThinkingTokenStat(
             avg_token_length=avg_token_length,
             token_count=token_count,
+        )
+
+
+class ThinkingTokenBenchmark(
+    BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat]
+):
+    metric: ThinkingTokenMetric
+
+    @override
+    def to_output(self, generation: Message, input: EvalInput) -> EvalOutput:
+        if not (thinking := generation.reasoning_content):
+            raise ValueError("No reasoning content found in the generation")
+
+        return EvalOutput(content=thinking)
+
+    @override
+    async def to_result(
+        self, args: Iterable[ToResultArgs[EvalInput, EvalOutput]]
+    ) -> ToResultList[EvalResult]:
+        return await self.metric.to_result(args)
+
+    def to_stat(self, groups: EvalResultGroups[EvalResult], base: BaseStat) -> EvalStat:
+        return EvalStat(
+            base=base,
+            thinking_token=self.metric.to_stat(groups),
         )
 
 
@@ -101,8 +125,8 @@ async def main():
     with (
         ThinkingTokenBenchmark(
             dataset=dataset.to_list(),
-            tokenizer_path=model_path,
             base_path=output_path,
+            metric=ThinkingTokenMetric(tokenizer_path=model_path),
         ) as benchmark,
         SGLangClient(
             server_args=EvalServerArgs(
