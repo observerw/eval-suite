@@ -29,7 +29,7 @@ from eval_suite.metric.result import (
     ToResultArgs,
     _EvalResultBase,
 )
-from eval_suite.metric.schema import EvalID, EvalInputBase, EvalOutputBase, InputID
+from eval_suite.metric.schema import EvalID, EvalInputBase, EvalOutputBase
 from eval_suite.metric.stat import BaseStat, EvalStatBase
 
 if TYPE_CHECKING:
@@ -73,28 +73,20 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
     """Execute benchmark with a client"""
 
     def __init__(self, benchmark: BenchmarkBase, client: ClientBase) -> None:
-        self._ben: BenchmarkBase[
-            EvalInputBase,
-            EvalOutputBase,
-            EvalResultBase,
-            EvalStatBase,
-        ] = benchmark
+        self._ben = benchmark
         self._cli = client
 
         self._logger = logging.getLogger(f"{self._ben.name}/{self._cli.model}")
 
-        self._Cache = self._ben._Cache
         self._cache_pool = EvalCachePool(
-            cache_schema=self._Cache,
+            cache_schema=self._ben._Cache,
             base_path=self._eval_path / self._ben.config.results_dir,
         )
 
         self._input_queue = aio.Queue[_InputContext | None](
             maxsize=self._cli.config.batch_size
         )
-        self._retry_queue = aio.Queue[InputID | None](
-            maxsize=self._cli.config.batch_size
-        )
+        self._retry_queue = aio.Queue[EvalID | None]()
         self._result_queue = aio.Queue[_ResultContext | None](
             maxsize=self._ben.config.eval_batch_size
         )
@@ -159,30 +151,20 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
             system_prompt=self._ben.config.system_prompt,
         )
 
-        success_count = sum(1 for gen in gen_batch if gen)
-        if success_count < len(gen_batch):
-            self._logger.warning(
-                f"Generation: {success_count}/{len(gen_batch)} successful"
-            )
-
         for input, gen in zip(input_list, gen_batch):
             if not gen:
                 continue
 
-            cache = self._cache_pool[input._eval_id]
-            cache.gen = gen
-            self._cache_pool.update(cache)
+            self._cache_pool.update_field(input._eval_id, gen=gen)
 
         return gen_batch
 
     def _to_input(self, ctx: _InputContext) -> EvalInputBase:
         # TODO config.exception_level
-        input = self._ben.to_input(ctx.data)
-        return input
+        return self._ben.to_input(ctx.data)
 
     def _to_output_cached(
-        self,
-        ctx: _OutputContext,
+        self, ctx: _OutputContext
     ) -> EvalOutputBase | ExceptionEvalResult:
         """`to_output` with cache management"""
 
@@ -207,8 +189,6 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         ctx_batch: Sequence[_ResultContext],
     ) -> Sequence[EvalResultBase | ExceptionEvalResult]:
         # TODO support stream-evaluation
-
-        """`to_result_batch_impl` with cache management"""
 
         rets: list[EvalResultBase | ExceptionEvalResult] = []
         uncached_ctx_batch: list[_ResultContext] = []
@@ -244,6 +224,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         return rets
 
     def _to_stat(self, ctx: _StatContext) -> EvalStatBase:
+        # TODO config.exception_level
         return self._ben.to_stat(ctx.groups, ctx.base)
 
     async def _add_result(self, result: _EvalResultBase):
@@ -251,7 +232,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
             self._logger.error(
                 f"Eval {result._eval_id} failed: {result.type} - {result.message}"
             )
-            await self._retry_queue.put(result._eval_id.input_id)
+            await self._retry_queue.put(result._eval_id)
 
         self._result_group.add_result(result)
 
@@ -356,11 +337,6 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
                             )
 
                         await self._add_result(result)
-
-                        # FIXME when sample_id > n_samples, input_queue.task_done here
-                        if result._eval_id.sample_id > self._ben.config.n_samples:
-                            self._input_queue.task_done()
-
                         self._result_queue.task_done()
 
                     result_ctx_batch = []
@@ -397,19 +373,17 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
             yield with_sample_id(input, sample_id)
 
         input_lookup = {input.input_id: input for input in inputs}
-        sample_id_lookup = {input.input_id: n_samples for input in inputs}
         max_n_samples = self._ben.config.max_n_samples
 
         # n_samples reached, wait for retry
-        while input_id := await self._retry_queue.get():
-            prev_sample_id = sample_id_lookup[input_id]
+        while eval_id := await self._retry_queue.get():
+            input_id = eval_id.input_id
+            prev_sample_id = eval_id.sample_id
             curr_sample_id = prev_sample_id + 1
 
-            # exceeded max_n_samples, skip
-            if max_n_samples and curr_sample_id > max_n_samples:
-                continue
+            if not (max_n_samples and curr_sample_id > max_n_samples):
+                yield with_sample_id(input_lookup[input_id], curr_sample_id)
 
-            yield with_sample_id(input_lookup[input_id], curr_sample_id)
             self._retry_queue.task_done()
 
     async def run(self) -> BaseModel | None:
@@ -450,7 +424,6 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
 
                 task = self._progress.add_task("Processing", total=self._total_count)
                 async for input in self._input_stream():
-                    print(input.input_id)
                     await self._input_queue.put(_InputContext(input))
                     self._progress.update(task, advance=1, total=self._total_count)
 
