@@ -1,9 +1,19 @@
-from typing import Any, Self, override
+from abc import abstractmethod
+from pathlib import Path
+from typing import Any, override
 
 import numpy as np
 from pydantic import computed_field
 
-from eval_suite import EvalResultBase, EvalResultGroups, EvalStatBase
+from eval_suite.metric import (
+    EvalInputBase,
+    EvalOutputBase,
+    EvalResultBase,
+    EvalResultGroups,
+    EvalStatBase,
+    ToResult,
+    ToStat,
+)
 
 
 def bleu(reference: str, generation: str) -> float:
@@ -65,11 +75,21 @@ class EvalResult(EvalResultBase):
         _ = self.bleu_score
 
 
-class Stat[Result: EvalResult](EvalStatBase):
+class Stat(EvalStatBase):
     avg_bleu_score: float
 
-    @classmethod
-    def from_groups(cls, groups: EvalResultGroups[Result]) -> Self:
+
+class Metric[Input: EvalInputBase, Output: EvalOutputBase](
+    ToResult[Input, Output, EvalResult],
+    ToStat[EvalResult, Stat],
+):
+    @abstractmethod
+    def to_result_sync(
+        self, eval_path: Path, input: Input, output: Output
+    ) -> EvalResult: ...
+
+    @override
+    def to_stat(self, groups: EvalResultGroups[EvalResult]) -> Stat:
         """Calculate the average BLEU score from the groups of results."""
 
         bleu_scores = [
@@ -77,5 +97,6 @@ class Stat[Result: EvalResult](EvalStatBase):
             for group in groups.values()
             for result in group
         ]
+
         avg_bleu_score = float(np.mean(bleu_scores)) if bleu_scores else 0.0
-        return cls(avg_bleu_score=avg_bleu_score)
+        return Stat(avg_bleu_score=avg_bleu_score)

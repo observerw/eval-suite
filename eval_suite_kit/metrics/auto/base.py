@@ -2,7 +2,7 @@ from typing import Any, Self
 
 from pydantic import Field
 
-from eval_suite import EvalResultBase, EvalResultGroups, EvalStatBase
+from eval_suite.metric import EvalResultBase, EvalResultGroups, EvalStatBase
 
 
 class AutoStat(EvalStatBase):

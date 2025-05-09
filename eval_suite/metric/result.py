@@ -1,14 +1,13 @@
 import asyncio as aio
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from pathlib import Path
-from typing import Literal, NamedTuple, Self, final
+from typing import Any, Literal, NamedTuple, Self, final
 
-from pydantic import PrivateAttr, RootModel, SerializeAsAny
+from pydantic import PrivateAttr
 
 from eval_suite.exception import BaseEvalResultType, EvalException
-from eval_suite.metric.config import BaseEvalConfig
 from eval_suite.metric.schema import (
     EvalID,
     EvalInputBase,
@@ -27,21 +26,6 @@ class _EvalResultBase(EvalSchema):
         return self._eval_id.input_id
 
 
-class EvalResultBase(_EvalResultBase):
-    result_type: Literal["regular"] = "regular"
-
-    type: str = BaseEvalResultType.success
-
-    @classmethod
-    def from_exception(cls, exc: EvalException) -> Self:
-        """If a regular eval result can be created from exception, it should be implemented here"""
-
-        if real_exc := exc.exc:
-            raise exc from real_exc
-
-        raise exc
-
-
 class ExceptionEvalResult(_EvalResultBase):
     result_type: Literal["exception"] = "exception"
 
@@ -54,67 +38,40 @@ class ExceptionEvalResult(_EvalResultBase):
         return cls(type=exc.type, message=exc.message)
 
 
-class EvalResultGroups[Result: EvalResultBase](dict[InputID, list[Result]]):
-    def extract[T: EvalResultBase](
-        self,
-        callable: Callable[[Result], T],
-    ) -> "EvalResultGroups[T]":
-        """Extract subgroups of results from the current group."""
+class EvalResultBase(_EvalResultBase):
+    result_type: Literal["regular"] = "regular"
 
-        return EvalResultGroups[T](
+    type: str = BaseEvalResultType.success
+
+    @classmethod
+    def from_exception(cls, exc: EvalException) -> Self:
+        """If a regular eval result can be created from exception, it should be implemented here"""
+
+        raise exc
+
+    @classmethod
+    def merge(
+        cls,
+        **kwargs: "Sequence[Any | BaseException]",
+    ) -> "ToResultList[Self]":
+        raise NotImplementedError
+
+
+class EvalResultGroups[Result: EvalResultBase](dict[InputID, list[Result]]):
+    def map[T: EvalResultBase](
+        self, map: Callable[[Result], T]
+    ) -> "EvalResultGroups[T]":
+        """Construct a subgroups of results from the current group."""
+
+        return EvalResultGroups(
             {
-                input_id: [callable(result) for result in results]
+                input_id: [map(result) for result in results]
                 for input_id, results in self.items()
             }
         )
 
 
-class _EvalResultGroups(RootModel[dict[InputID, list[_EvalResultBase]]]):
-    # This class is not intend to be deserialized, no need to discriminate
-    root: dict[InputID, list[SerializeAsAny[_EvalResultBase]]] = {}
-
-    _config: BaseEvalConfig = PrivateAttr()
-    _extra_count: int = PrivateAttr(default=0)
-
-    @property
-    def extra_count(self) -> int:
-        """Extra result count, for tqdm total count"""
-
-        return self._extra_count
-
-    def add_result(self, result: _EvalResultBase):
-        if isinstance(result, ExceptionEvalResult):
-            self._extra_count += 1
-
-        self.root.setdefault(result._input_id, []).append(result)
-
-    def is_completed(self, input_id: InputID) -> bool:
-        """Check if there are enough results (`>= n_samples`) for the given eval_id"""
-
-        result_count = len(
-            [
-                result
-                for result in self.root.get(input_id, [])
-                if isinstance(result, EvalResultBase)
-            ]
-        )
-
-        return result_count >= self._config.n_samples
-
-    def stat(self) -> EvalResultGroups[EvalResultBase]:
-        """Filter out incomplete and exception results"""
-
-        return EvalResultGroups(
-            {
-                input_id: [
-                    result  #
-                    for result in results
-                    if isinstance(result, EvalResultBase)
-                ]
-                for input_id, results in self.root.items()
-                if self.is_completed(input_id)
-            }
-        )
+type ToResultList[Result: EvalResultBase] = Sequence[Result | BaseException]
 
 
 class ToResultArgs[Input: EvalInputBase, Output: EvalOutputBase](NamedTuple):
@@ -193,8 +150,8 @@ class ToResult[Input: EvalInputBase, Output: EvalOutputBase, Result: EvalResultB
         )
 
     def to_result_batch_sync(
-        self, args: Sequence[ToResultArgs[Input, Output]]
-    ) -> Sequence[Result | BaseException]:
+        self, args: Iterable[ToResultArgs[Input, Output]]
+    ) -> ToResultList[Result]:
         """Evaluate a batch of outputs.
 
         Args:
@@ -214,8 +171,8 @@ class ToResult[Input: EvalInputBase, Output: EvalOutputBase, Result: EvalResultB
         )
 
     async def to_result_batch_async(
-        self, args: Sequence[ToResultArgs[Input, Output]]
-    ) -> Sequence[Result | BaseException]:
+        self, args: Iterable[ToResultArgs[Input, Output]]
+    ) -> ToResultList[Result]:
         """Evaluate a batch of outputs asynchronously.
 
         Args:
@@ -237,8 +194,8 @@ class ToResult[Input: EvalInputBase, Output: EvalOutputBase, Result: EvalResultB
     @final
     async def to_result(
         self,
-        args: Sequence[ToResultArgs[Input, Output]],
-    ) -> Sequence[Result | BaseException]:
+        args: Iterable[ToResultArgs[Input, Output]],
+    ) -> ToResultList[Result]:
         match self._impl:
             case "to_result":
                 with ProcessPoolExecutor() as executor:

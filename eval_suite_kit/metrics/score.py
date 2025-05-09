@@ -1,9 +1,18 @@
 from collections.abc import Sequence
-from typing import Self
+from typing import Self, override
 
 import numpy as np
 
-from eval_suite import EvalResultBase, EvalResultGroups, EvalStatBase
+from eval_suite.metric import (
+    EvalInputBase,
+    EvalOutputBase,
+    EvalResultBase,
+    EvalResultGroups,
+    EvalStatBase,
+    MetricBase,
+    ToResult,
+    ToStat,
+)
 
 
 class EvalResult(EvalResultBase):
@@ -34,21 +43,14 @@ class Stat(EvalStatBase):
             total=len(scores),
         )
 
-    @classmethod
-    def from_groups(cls, groups: EvalResultGroups[EvalResult]) -> Self:
-        return cls.from_group(
+
+class Metric[Input: EvalInputBase, Output: EvalOutputBase](
+    MetricBase,
+    ToResult[Input, Output, EvalResult],
+    ToStat[EvalResult, Stat],
+):
+    @override
+    def to_stat(self, groups: EvalResultGroups[EvalResult]) -> Stat:
+        return Stat.from_group(
             group=[result for group in groups.values() for result in group]
-        )
-
-
-class GroupStat(EvalStatBase):
-    groups: dict[str, Stat]
-
-    @classmethod
-    def from_groups(cls, groups: EvalResultGroups[EvalResult]) -> Self:
-        return cls(
-            groups={
-                str(id): Stat.from_group(group)  #
-                for id, group in groups.items()
-            }
         )

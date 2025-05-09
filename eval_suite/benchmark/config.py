@@ -1,10 +1,8 @@
 import os
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
-
-from eval_suite.utils.extract import Self
 
 
 class BenchmarkConfig(BaseModel):
@@ -69,10 +67,6 @@ class BenchmarkConfig(BaseModel):
 
     The framework will use this information to optimize the evaluation process.
     """
-
-
-class BaseEvalConfig(BaseModel):
-    """Base configuration for evaluation"""
 
     n_samples: int = 1
     """Number of samples for each item"""

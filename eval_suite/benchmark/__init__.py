@@ -1,9 +1,10 @@
 from .base import BenchmarkBase, ToResultArgs
-from .stat import BaseStat, EvalStatBase
+from .config import BenchmarkConfig
+from .result import EvalResultGroups
 
 __all__ = [
     "BenchmarkBase",
     "ToResultArgs",
-    "BaseStat",
-    "EvalStatBase",
+    "EvalResultGroups",
+    "BenchmarkConfig",
 ]

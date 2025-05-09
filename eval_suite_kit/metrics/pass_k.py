@@ -1,34 +1,22 @@
+from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Self
+from pathlib import Path
+from typing import Self, override
 
 import numpy as np
-from pydantic import Field, model_validator
+from pydantic import Field
 
-from eval_suite import (
-    BaseEvalConfig,
-    BaseEvalResultType,
-    EvalException,
+from eval_suite.exception import BaseEvalResultType, EvalException
+from eval_suite.metric import (
+    EvalInputBase,
+    EvalOutputBase,
     EvalResultBase,
     EvalResultGroups,
     EvalStatBase,
+    ToResult,
+    ToStat,
 )
-
-
-class EvalConfig(BaseEvalConfig):
-    k: int = Field(default=5, ge=1)
-    """Number of top results to consider for pass@k"""
-
-    n_samples: int = Field(default=10)
-
-    @model_validator(mode="after")
-    def _validate_k(self) -> Self:
-        if not self.k < self.n_samples:
-            raise ValueError(
-                f"To calculate a meaningful pass@k, `k` must be less than `n_samples`. "
-                f"Got k={self.k} and n_samples={self.n_samples}"
-            )
-
-        return self
+from eval_suite.metric.base import MetricBase
 
 
 class EvalResult(EvalResultBase):
@@ -74,12 +62,28 @@ class Stat(EvalStatBase):
     k: int
     pass_n: dict[str, float]
 
-    @classmethod
-    def from_groups[T: EvalResult](cls, groups: EvalResultGroups[T], *, k: int) -> Self:
+
+class Metric[Input: EvalInputBase, Output: EvalOutputBase](
+    MetricBase,
+    ToResult[Input, Output, EvalResult],
+    ToStat[EvalResult, Stat],
+):
+    """Metric to calculate pass@k for a group of results"""
+
+    k: int = Field(default=5, ge=1)
+    """Number of top results to consider for pass@k"""
+
+    @abstractmethod
+    async def to_result_async(
+        self, eval_path: Path, input: Input, output: Output
+    ) -> EvalResult: ...
+
+    @override
+    def to_stat(self, groups: EvalResultGroups[EvalResult]) -> Stat:
         all_groups = [_EvalResultGroup(root=list(group)) for group in groups.values()]
         pass_n = {
             f"pass@{n}": float(np.mean([group.pass_k(k=n) for group in all_groups]))
-            for n in range(1, k + 1)
+            for n in range(1, self.k + 1)
         }
 
-        return cls(k=k, pass_n=pass_n)
+        return Stat(k=self.k, pass_n=pass_n)

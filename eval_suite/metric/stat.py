@@ -4,7 +4,7 @@ from typing import Self
 
 from pydantic import BaseModel, Field
 
-from eval_suite.metric.result import _EvalResultGroups
+from eval_suite.benchmark.result import _EvalResultGroups
 
 
 class EvalStatFile(BaseModel):
