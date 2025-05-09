@@ -594,6 +594,7 @@ source = { virtual = "." }
 dependencies = [
     { name = "datasets" },
     { name = "jinja2" },
+    { name = "more-itertools" },
     { name = "pydantic" },
     { name = "pydantic-ai" },
     { name = "rich" },
@@ -630,6 +631,7 @@ vllm = [
 requires-dist = [
     { name = "datasets", specifier = ">=3.5.0" },
     { name = "jinja2", specifier = ">=3.1.6" },
+    { name = "more-itertools", specifier = ">=10.7.0" },
     { name = "pydantic", specifier = ">=2.11.3" },
     { name = "pydantic-ai", specifier = ">=0.0.46" },
     { name = "rich", specifier = ">=14.0.0" },
@@ -1486,6 +1488,15 @@ dependencies = [
 sdist = { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/c0/4b/1c11ca8bea237b49ad55889fd2387c012ce5d1fc574d4280cd593c32f41b/modelscope-1.25.0.tar.gz", hash = "sha256:b9a5ef2e68f17a63c8ea688104d82de1fc8b506c37ded1aeedfcf3eb6028b60a", size = 4388940 }
 wheels = [
     { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/38/8f/b051fc200ba09584f4d53c35da68e4e3d08a0a8688dab60d6fe726e290c8/modelscope-1.25.0-py3-none-any.whl", hash = "sha256:30f0b8c94502ca44c911a9ce5ff388b3de4276c5b5cba2f850bc370dbf8cac57", size = 5854156 },
+]
+
+[[package]]
+name = "more-itertools"
+version = "10.7.0"
+source = { registry = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple" }
+sdist = { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/ce/a0/834b0cebabbfc7e311f30b46c8188790a37f89fc8d756660346fe5abfd09/more_itertools-10.7.0.tar.gz", hash = "sha256:9fddd5403be01a94b204faadcff459ec3568cf110265d3c54323e1e866ad29d3", size = 127671 }
+wheels = [
+    { url = "https://mirrors.tuna.tsinghua.edu.cn/pypi/web/packages/2b/9f/7ba6f94fc1e9ac3d2b853fdff3035fb2fa5afbed898c4a72b8a020610594/more_itertools-10.7.0-py3-none-any.whl", hash = "sha256:d43980384673cb07d2f7d2d918c616b30c659c089ee23953f601d6609c67510e", size = 65278 },
 ]
 
 [[package]]

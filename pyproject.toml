@@ -8,6 +8,7 @@ requires-python = ">=3.12"
 dependencies = [
     "datasets>=3.5.0",
     "jinja2>=3.1.6",
+    "more-itertools>=10.7.0",
     "pydantic>=2.11.3",
     "pydantic-ai>=0.0.46",
     "rich>=14.0.0",
