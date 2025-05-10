@@ -37,11 +37,6 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class _InputContext:
-    data: Any
-
-
-@dataclass
 class _OutputContext:
     gen: Message | None
     input: EvalInputBase
@@ -73,7 +68,12 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
     """Execute benchmark with a client"""
 
     def __init__(self, benchmark: BenchmarkBase, client: ClientBase) -> None:
-        self._ben = benchmark
+        self._ben: BenchmarkBase[
+            EvalInputBase,
+            EvalOutputBase,
+            EvalResultBase,
+            EvalStatBase,
+        ] = benchmark
         self._cli = client
 
         self._logger = logging.getLogger(f"{self._ben.name}/{self._cli.model}")
@@ -83,7 +83,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
             base_path=self._eval_path / self._ben.config.results_dir,
         )
 
-        self._input_queue = aio.Queue[_InputContext | None](
+        self._input_queue = aio.Queue[EvalInputBase | None](
             maxsize=self._cli.config.batch_size
         )
         self._retry_queue = aio.Queue[EvalID | None]()
@@ -158,10 +158,6 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
             self._cache_pool.update_field(input._eval_id, gen=gen)
 
         return gen_batch
-
-    def _to_input(self, ctx: _InputContext) -> EvalInputBase:
-        # TODO config.exception_level
-        return self._ben.to_input(ctx.data)
 
     def _to_output_cached(
         self, ctx: _OutputContext
@@ -242,10 +238,8 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         self._logger.info("Generation worker started")
 
         async def process_batch(
-            input_ctx_batch: list[_InputContext],
+            input_batch: list[EvalInputBase],
         ) -> list[_ResultContext]:
-            input_batch = [self._ben.to_input(ctx.data) for ctx in input_ctx_batch]
-
             # ensure sample path exists
             for input in input_batch:
                 self._sample_path(input._eval_id).mkdir(parents=True, exist_ok=True)
@@ -275,25 +269,26 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
                 for input, output in zip(input_batch, output_batch)
             ]
 
-        input_ctx_batch: list[_InputContext] = []
+        input_batch: list[EvalInputBase] = []
         while True:
-            if input_ctx := await self._input_queue.get():
-                input_ctx_batch.append(input_ctx)
+            if input := await self._input_queue.get():
+                input_batch.append(input)
 
-            if not input_ctx or (len(input_ctx_batch) == self._cli._config.batch_size):
-                if input_ctx_batch:
-                    self._logger.debug(
-                        f"Processing batch of size {len(input_ctx_batch)}"
-                    )
-                    result_ctx_batch = await process_batch(input_ctx_batch)
+            # all inputs are processed
+            stop_signal = not input
+            # the batch is ready to be processed
+            batch_ready = len(input_batch) == self._cli._config.batch_size
 
-                    for result_ctx in result_ctx_batch:
-                        await self._result_queue.put(result_ctx)
-                        self._input_queue.task_done()
+            if stop_signal or batch_ready:
+                self._logger.debug(f"Processing batch of size {len(input_batch)}")
 
-                    input_ctx_batch = []
+                for result_ctx in await process_batch(input_batch):
+                    await self._result_queue.put(result_ctx)
+                    self._input_queue.task_done()
 
-            if not input_ctx:
+                input_batch = []
+
+            if stop_signal:
                 self._input_queue.task_done()
                 break
 
@@ -357,10 +352,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
         return expected_count + unexpected_count
 
     async def _input_stream(self):
-        inputs = [
-            self._to_input(_InputContext(data=item))  #
-            for item in self._ben.dataset
-        ]
+        inputs = [self._ben.to_input(data=item) for item in self._ben.dataset]
 
         def with_sample_id(input: EvalInputBase, sample_id: int) -> EvalInputBase:
             ret = input.model_copy()
@@ -424,7 +416,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
 
                 task = self._progress.add_task("Processing", total=self._total_count)
                 async for input in self._input_stream():
-                    await self._input_queue.put(_InputContext(input))
+                    await self._input_queue.put(input)
                     self._progress.update(task, advance=1, total=self._total_count)
 
                 await self._input_queue.put(None)
