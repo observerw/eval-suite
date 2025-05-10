@@ -54,7 +54,26 @@ class EvalResultBase(_EvalResultBase):
         cls,
         **kwargs: "Sequence[Any | BaseException]",
     ) -> "ToResultList[Self]":
-        raise NotImplementedError
+        keys = list(kwargs.keys())
+        values = list(kwargs.values())
+
+        # transpose
+        values = list([list(row) for row in zip(*values)])
+
+        # select the first exception in each row if any
+        values = [
+            exc
+            if (exc := next((v for v in row if isinstance(v, BaseException)), None))
+            else row
+            for row in values
+        ]
+
+        return [
+            cls.model_validate({k: v for k, v in zip(keys, value)})
+            if not isinstance(value, BaseException)
+            else value
+            for value in values
+        ]
 
 
 class EvalResultGroups[Result: EvalResultBase](dict[InputID, list[Result]]):
@@ -218,12 +237,11 @@ class ToResult[Input: EvalInputBase, Output: EvalOutputBase, Result: EvalResultB
                 )
             case "to_result_batch":
                 with ProcessPoolExecutor(max_workers=1) as executor:
-                    method = partial(
-                        aio.get_event_loop().run_in_executor,
+                    rets = await aio.get_event_loop().run_in_executor(
                         executor,
                         self.to_result_batch_sync,
+                        args,
                     )
-                    rets = await method(args)
             case "to_result_batch_async":
                 rets = await self.to_result_batch_async(args)
             case _:

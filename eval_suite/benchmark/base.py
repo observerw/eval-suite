@@ -15,12 +15,8 @@ from eval_suite.benchmark.config import BenchmarkConfig
 from eval_suite.benchmark.executor import BenchmarkExcutor
 from eval_suite.benchmark.result import EvalResultGroups
 from eval_suite.client import ClientBase, Message
-from eval_suite.metric.base import MetricBase, ToInput, ToOutput
-from eval_suite.metric.result import (
-    EvalResultBase,
-    ToResultArgs,
-    ToResultList,
-)
+from eval_suite.metric.base import ToInput, ToOutput
+from eval_suite.metric.result import EvalResultBase, ToResultArgs, ToResultList
 from eval_suite.metric.schema import EvalID, EvalInputBase, EvalOutputBase
 from eval_suite.metric.stat import BaseStat, EvalStatBase
 
@@ -134,15 +130,6 @@ class BenchmarkBase[
         """Documentation string for the benchmark. Can be useful for `stat.AutoStat`."""
 
         return self.__doc__
-
-    @classmethod
-    def metrics(cls) -> dict[str, type[MetricBase]]:
-        return {
-            name: anno
-            for name, field in cls.model_fields.items()
-            if (anno := field.annotation) is not None  #
-            and issubclass(anno, MetricBase)
-        }
 
     def to_input(self, data: Any) -> Input:
         return self._Input.model_validate(data)

@@ -286,7 +286,7 @@ class BenchmarkExcutor:  # Type-free since we don't really care about concrete t
                     await self._result_queue.put(result_ctx)
                     self._input_queue.task_done()
 
-                input_batch = []
+                input_batch.clear()
 
             if stop_signal:
                 self._input_queue.task_done()

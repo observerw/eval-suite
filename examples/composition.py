@@ -18,7 +18,6 @@ from eval_suite.metric import (
 )
 from eval_suite.metric.result import ToResultArgs, ToResultList
 from eval_suite.utils.dataset import load_repo_dataset
-from eval_suite.utils.extract import extract_code
 from eval_suite_kit.metrics import llm_judge, pass_k, score
 
 logging.basicConfig(
@@ -62,10 +61,7 @@ class EvalStat(EvalStatBase):
 class PassKMetric(pass_k.Metric[EvalInput, EvalOutput]):
     @override
     async def to_result_async(
-        self,
-        eval_path: Path,
-        input: EvalInput,
-        output: EvalOutput,
+        self, eval_path: Path, input: EvalInput, output: EvalOutput
     ) -> pass_k.EvalResult:
         return pass_k.EvalResult(passed=True)
 
@@ -85,14 +81,7 @@ class CompBenchmark(BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat]):
     pass_k_metric: pass_k.Metric
 
     @override
-    def to_output(
-        self,
-        generation: Message[dict],
-        input: EvalInput,
-    ) -> EvalOutput:
-        if not (result := extract_code(generation.content).get("python", id="result")):
-            raise ValueError("No code found in the generation")
-
+    def to_output(self, generation: Message[dict], input: EvalInput) -> EvalOutput:
         return EvalOutput(
             judge=self.judge_metric.to_output(generation, input),
         )
@@ -101,15 +90,12 @@ class CompBenchmark(BenchmarkBase[EvalInput, EvalOutput, EvalResult, EvalStat]):
     async def to_result(
         self, args: Iterable[ToResultArgs[EvalInput, EvalOutput]]
     ) -> ToResultList[EvalResult]:
-        judge_results = await self.judge_metric.to_result(
-            ToResultArgs(eval_path, input, output.judge)
-            for eval_path, input, output in args
-        )
-        pass_k_results = await self.pass_k_metric.to_result(args)
-
         return EvalResult.merge(
-            pass_k=pass_k_results,
-            judge=judge_results,
+            pass_k=await self.pass_k_metric.to_result(args),
+            judge=await self.judge_metric.to_result(
+                ToResultArgs(eval_path, input, output.judge)
+                for eval_path, input, output in args
+            ),
         )
 
     @override
