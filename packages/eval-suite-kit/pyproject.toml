@@ -1,0 +1,28 @@
+[project]
+name = "eval-suite-kit"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [{ name = "observer", email = "wozluohd@gmail.com" }]
+requires-python = ">=3.12"
+dependencies = [
+    "eval-suite-core",
+]
+
+[dependency-groups]
+ai = ["mcp>=1.7.1", "pydantic-ai>=0.0.46"]
+dev = ["pytest>=8.3.5", "pytest-asyncio>=0.26.0"]
+openai = ["docker>=7.1.0", "openai>=1.75.0", "tenacity>=9.1.2"]
+sglang = ["sglang[all]>=0.4.5.post1", "torch>=2.6.0", "httpx>=0.28.1"]
+transformer = ["transformers==4.51.1"]
+vllm = ["vllm>=0.8.3"]
+
+[project.scripts]
+eval-suite-kit = "eval_suite_kit:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+eval-suite-core = { workspace = true }
