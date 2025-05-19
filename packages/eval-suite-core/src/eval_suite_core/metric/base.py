@@ -1,15 +1,13 @@
-import contextlib
+import os
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar, Self, cast, override
+from collections.abc import Generator
+from contextlib import asynccontextmanager, contextmanager
+from typing import Any, ClassVar, NewType, Self, override
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, PrivateAttr
 
-from eval_suite_core.metric.config import (
-    AsyncMetricConfig,
-    MetricConfig,
-    SyncMetricConfig,
-)
+from eval_suite_core.metric.config import MetricConfig
 from eval_suite_core.metric.item import EvalItemBase
 from eval_suite_core.metric.result import (
     EvalResultBase,
@@ -20,22 +18,17 @@ from eval_suite_core.metric.result import (
     ToResultBatch,
     ToResultBatchAsync,
 )
-from eval_suite_core.metric.stat import BaseEvalStat, EvalStatBase
+from eval_suite_core.metric.stat import BaseEvalStat, EvalStatBase, EvalStatMap
 from eval_suite_core.metric.typevar import TypeVarMixin
 
-type MetricID = str
+MetricID = NewType("MetricID", str)
 
 
 class _MetricBase[
     Item: EvalItemBase,
     Result: EvalResultBase,
     Stat: EvalStatBase,
-](
-    BaseModel,
-    contextlib.AbstractContextManager,
-    TypeVarMixin,
-    ABC,
-):
+](BaseModel, TypeVarMixin, ABC):
     model_config = {"frozen": True}
 
     name: ClassVar[str]
@@ -49,13 +42,15 @@ class _MetricBase[
     def __hash__(self) -> int:
         return hash(self.name)
 
-    @override
-    def __enter__(self) -> Self:
-        return self
+    @classmethod
+    @contextmanager
+    def create(cls, *, config: MetricConfig) -> Generator[Self, None, None]:
+        yield cls(config=config)
 
-    @override
-    def __exit__(self, *exc_details) -> bool | None:
-        return
+    @classmethod
+    @asynccontextmanager
+    async def create_async(cls, *, config: MetricConfig):
+        yield cls(config=config)
 
     @property
     def _Item(self) -> type[Item]:
@@ -73,7 +68,7 @@ class _MetricBase[
     def id(self) -> MetricID:
         """Unique ID of the metric."""
 
-        return self._id.hex
+        return MetricID(self._id.hex)
 
     @property
     def prec(self) -> "set[_MetricBase]":
@@ -96,7 +91,7 @@ class _MetricBase[
         self,
         groups: EvalResultGroups[Result],
         base: BaseEvalStat,
-        prec: "EvalStatMap",
+        prec: EvalStatMap,
     ) -> Stat:
         """Statistics of the metric."""
 
@@ -109,13 +104,34 @@ class MetricBase[
     _MetricBase[Item, Result, Stat],
     ToResult[Item, Result],
 ):
-    config: MetricConfig = SyncMetricConfig()
+    """Default metric base class. Expect to perform light-weight sync operations."""
+
+    class DefaultConfig(MetricConfig): ...
+
+    config: MetricConfig = DefaultConfig()
 
 
 type MetricDefault = MetricBase[EvalItemBase, EvalResultBase, EvalStatBase]
 
 
-class AsyncMetricBase[
+class ComputeMetricBase[
+    Item: EvalItemBase,
+    Result: EvalResultBase,
+    Stat: EvalStatBase,
+](
+    _MetricBase[Item, Result, Stat],
+    ToResult[Item, Result],
+):
+    """Compute-intensive metric base class. Expect to perform sync computations."""
+
+    class DefaultConfig(MetricConfig):
+        num_cpus: int = 1
+        batch_size: int = os.cpu_count() or 1
+
+    config: MetricConfig = DefaultConfig()
+
+
+class IOMetricBase[
     Item: EvalItemBase,
     Result: EvalResultBase,
     Stat: EvalStatBase,
@@ -123,13 +139,17 @@ class AsyncMetricBase[
     _MetricBase[Item, Result, Stat],
     ToResultAsync[Item, Result],
 ):
-    config: MetricConfig = AsyncMetricConfig()
+    """IO-intensive metric base class. Expect to perform async IO operations."""
+
+    class DefaultConfig(MetricConfig): ...
+
+    config: MetricConfig = DefaultConfig()
 
 
-type AsyncMetricDefault = AsyncMetricBase[EvalItemBase, EvalResultBase, EvalStatBase]
+type IOMetricDefault = IOMetricBase[EvalItemBase, EvalResultBase, EvalStatBase]
 
 
-class BatchMetricBase[
+class BatchComputeMetricBase[
     Item: EvalItemBase,
     Result: EvalResultBase,
     Stat: EvalStatBase,
@@ -137,13 +157,21 @@ class BatchMetricBase[
     _MetricBase[Item, Result, Stat],
     ToResultBatch[Item, Result],
 ):
-    config: MetricConfig = SyncMetricConfig()
+    """Batch compute-intensive metric base class. Expect to perform batch sync computations."""
+
+    class DefaultConfig(MetricConfig):
+        num_cpus: int = 1
+        batch_size: int = os.cpu_count() or 1
+
+    config: MetricConfig = DefaultConfig()
 
 
-type BatchMetricDefault = BatchMetricBase[EvalItemBase, EvalResultBase, EvalStatBase]
+type BatchMetricDefault = BatchComputeMetricBase[
+    EvalItemBase, EvalResultBase, EvalStatBase
+]
 
 
-class AsyncBatchMetricBase[
+class BatchIOMetricBase[
     Item: EvalItemBase,
     Result: EvalResultBase,
     Stat: EvalStatBase,
@@ -151,25 +179,13 @@ class AsyncBatchMetricBase[
     _MetricBase[Item, Result, Stat],
     ToResultBatchAsync[Item, Result],
 ):
-    config: MetricConfig = AsyncMetricConfig()
+    """Batch IO-intensive metric base class. Expect to perform batch async IO operations."""
+
+    class DefaultConfig(MetricConfig): ...
+
+    config: MetricConfig = DefaultConfig()
 
 
-type AsyncBatchMetricDefault = AsyncBatchMetricBase[
+type AsyncBatchMetricDefault = BatchIOMetricBase[
     EvalItemBase, EvalResultBase, EvalStatBase
 ]
-
-
-# metric-result 1-to-1 mapping
-class EvalResultMap(dict[_MetricBase, EvalResultBase]):
-    def __getitem__[Result: EvalResultBase](  # little type trick to extract the type
-        self, metric: _MetricBase[EvalItemBase, Result, EvalStatBase]
-    ) -> Result:
-        return cast(Result, super().__getitem__(metric))
-
-
-# metric-stat 1-to-1 mapping
-class EvalStatMap(dict[_MetricBase, EvalStatBase]):
-    def __getitem__[Stat: EvalStatBase](
-        self, metric: _MetricBase[EvalItemBase, EvalResultBase, Stat]
-    ) -> Stat:
-        return cast(Stat, super().__getitem__(metric))

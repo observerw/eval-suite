@@ -7,10 +7,11 @@ from typing import Any, ClassVar, Self, override
 from pydantic import BaseModel
 from pydantic._internal._generics import get_model_typevars_map
 
-from eval_suite_core.benchmark.cache import EvalCache
 from eval_suite_core.benchmark.config import EvalConfig
+from eval_suite_core.client.base import _ClientBase
 from eval_suite_core.metric.base import _MetricBase
 from eval_suite_core.metric.item import EvalItemBase
+from eval_suite_core.utils.collections import OrderedSet
 
 
 class BenchmarkBase[Item: EvalItemBase](BaseModel, contextlib.AbstractContextManager):
@@ -31,21 +32,22 @@ class BenchmarkBase[Item: EvalItemBase](BaseModel, contextlib.AbstractContextMan
         return get_model_typevars_map(self.__class__)[Item]
 
     @cached_property
-    def _Cache(self) -> type[EvalCache]:
-        return EvalCache.create_schema(
-            *(
-                (metric_name, metric._Result)
-                for metric_name, metric in self.metrics.items()
-            )
-        )
+    def metrics(self) -> list[_MetricBase]:
+        return [metric for _, metric in dict(self) if isinstance(metric, _MetricBase)]
 
-    @property
-    def metrics(self) -> dict[str, _MetricBase]:
-        return {
-            metric_name: metric
-            for metric_name, metric in dict(self)
-            if isinstance(metric, _MetricBase)
-        }
+    @cached_property
+    def ordered_metrics(self) -> list[_MetricBase]:
+        """Topologically sort metrics."""
+
+        metrics: OrderedSet[_MetricBase] = OrderedSet()
+        stack: list[_MetricBase] = [*self.metrics]
+
+        while stack:
+            metric = stack.pop()
+            metrics.add(metric)
+            stack.extend(metric.prec)
+
+        return list(reversed(metrics))  # reverse to get the real topological order
 
     @override
     def __enter__(self) -> Self:
@@ -56,7 +58,7 @@ class BenchmarkBase[Item: EvalItemBase](BaseModel, contextlib.AbstractContextMan
     def __exit__(self, *exc_details):
         del self._entered
 
-    async def run(self):
+    async def run(self, client: _ClientBase):
         if not hasattr(self, "_entered"):
             raise RuntimeError("Benchmark should be used with `with` statement")
 

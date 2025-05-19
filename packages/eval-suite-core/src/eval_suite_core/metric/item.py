@@ -6,9 +6,6 @@ from pydantic import BaseModel, PrivateAttr
 
 from eval_suite_core.prompt.schema import ChatSequence
 
-# type ItemID = str
-# type SampleID = int
-
 ItemID = NewType("ItemID", str)
 SampleID = NewType("SampleID", int)
 

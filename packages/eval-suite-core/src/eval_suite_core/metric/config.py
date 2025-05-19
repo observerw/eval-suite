@@ -1,34 +1,19 @@
-import os
+from typing import Any
 
 from pydantic import BaseModel
 
 
-class RayOptions(BaseModel):
+class MetricConfig(BaseModel):
     num_cpus: int = 0
     num_gpus: int = 0
     resources: dict[str, int] = {}
 
-
-class MetricConfig(BaseModel):
-    ray_options: RayOptions
-    batch_size: int
-
-
-class SyncMetricConfig(MetricConfig):
-    ray_options: RayOptions = RayOptions(
-        num_cpus=os.cpu_count() or 1,
-        num_gpus=0,
-        resources={},
-    )
-
-    batch_size: int = os.cpu_count() or 1
-
-
-class AsyncMetricConfig(MetricConfig):
-    ray_options: RayOptions = RayOptions(
-        num_cpus=0,
-        num_gpus=0,
-        resources={},
-    )
-
     batch_size: int = 1024
+
+    @property
+    def ray_options(self) -> dict[str, Any]:
+        return {
+            "num_cpus": self.num_cpus,
+            "num_gpus": self.num_gpus,
+            "resources": self.resources,
+        }

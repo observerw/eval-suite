@@ -3,10 +3,12 @@ from pathlib import Path
 from typing import Any, Self
 
 import pydantic
+import ray
 from pydantic import BaseModel, create_model
 
 from eval_suite_core.client.schema import Message
 from eval_suite_core.metric.result import EvalResultBase
+from eval_suite_core.utils.ray import RayQueue
 
 
 class EvalCache(BaseModel):
@@ -18,11 +20,13 @@ class EvalCache(BaseModel):
     generation: Message
 
     @classmethod
-    def create_schema(cls, *defs: tuple[str, type[EvalResultBase]]) -> type[Self]:
+    def create_schema(cls, defs: dict[str, type[EvalResultBase]]) -> type[Self]:
         return create_model(
             "DerivedEvalCache",
             __base__=cls,
-            field_definitions={metric: (Result, None) for metric, Result in defs},
+            field_definitions={
+                metric: (Result, None) for metric, Result in defs.items()
+            },
         )
 
     @classmethod
@@ -55,3 +59,8 @@ class EvalCache(BaseModel):
         setattr(self, metric, result)
 
         return self
+
+
+@ray.remote
+class EvalResultCollection:
+    queue: RayQueue[EvalResultBase]

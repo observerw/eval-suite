@@ -2,38 +2,24 @@ import contextlib
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
-from typing import Any, override
+from typing import override
 
 from pydantic import BaseModel
 
 from eval_suite_core import prompt
-from eval_suite_core.client.config import ClientConfig
+from eval_suite_core.client.config import ClientConfig, SamplingParamsBase
+from eval_suite_core.client.schema import Message
 from eval_suite_core.prompt.schema import ChatContent, ChatSequence
 
 logger = logging.getLogger(__name__)
 
 
-class SamplingParamsBase(BaseModel, ABC):
-    model_config = {"frozen": True, "extra": "allow"}
-
-
-class Message(BaseModel):
-    content: str
-    reasoning_content: str | None = None
-    generation: dict[str, Any] | None = None
-
-
-class _ClientBase[P: SamplingParamsBase](contextlib.AbstractContextManager, ABC):
-    def __init__(
-        self,
-        model: str,
-        sampling_params: P,
-        *,
-        config: ClientConfig = ClientConfig(),
-    ) -> None:
-        self._model = model
-        self._sampling_params = sampling_params
-        self._config = config
+class _ClientBase[P: SamplingParamsBase](
+    contextlib.AbstractContextManager, BaseModel, ABC
+):
+    model: str
+    sampling_params: P
+    config: ClientConfig = ClientConfig()
 
     @override
     def __enter__(self):
@@ -44,21 +30,9 @@ class _ClientBase[P: SamplingParamsBase](contextlib.AbstractContextManager, ABC)
         return
 
     @property
-    def model(self) -> str:
-        return self._model
-
-    @property
     def path_name(self) -> str:
         """Return a name for the model that can be used in file paths."""
-        return self._model.replace("/", "_").replace(":", "_")
-
-    @property
-    def sampling_params(self) -> P:
-        return self._sampling_params
-
-    @property
-    def config(self) -> ClientConfig:
-        return self._config
+        return self.model.replace("/", "_").replace(":", "_")
 
 
 class OnlineClientBase[P: SamplingParamsBase](_ClientBase[P]):

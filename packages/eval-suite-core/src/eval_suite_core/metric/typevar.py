@@ -5,7 +5,7 @@ from pydantic import BaseModel, PrivateAttr
 from pydantic._internal._generics import get_model_typevars_map
 
 
-class TypeVarMixin:
+class TypeVarMixin:  # FIXME
     _typevar_map: ClassVar[dict[TypeVar, Any]] = PrivateAttr()
 
     @override

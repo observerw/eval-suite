@@ -1,132 +1,46 @@
 import asyncio as aio
-from collections.abc import Mapping, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from functools import cached_property
 from itertools import product
-from typing import cast
-
-import ray
-from ray.dag.function_node import FunctionNode
-from ray.dag.input_node import InputNode
-from ray.util.queue import Queue
 
 from eval_suite_core.benchmark.base import BenchmarkBase
-from eval_suite_core.benchmark.eval import (
-    async_eval_worker,
-    batch_eval_receiver,
-    eval_worker,
-)
+from eval_suite_core.benchmark.eval import MetricGraph
 from eval_suite_core.client.base import OfflineClientBase, OnlineClientBase, _ClientBase
-from eval_suite_core.metric.base import (
-    AsyncBatchMetricBase,
-    AsyncMetricBase,
-    BatchMetricBase,
-    MetricBase,
-    MetricID,
-    _MetricBase,
-)
+from eval_suite_core.metric.base import MetricID
 from eval_suite_core.metric.item import EvalID, EvalItemBase, SampleID
-from eval_suite_core.metric.result import (
-    EvalResultBase,
-    ExceptionEvalResult,
-    MetricResultGroups,
-    ToResultArgsBase,
-)
-from eval_suite_core.utils.collections import OrderedSet, queue_counter
-
-
-@ray.remote
-async def online_generate_worker(client: OnlineClientBase, item: EvalItemBase):
-    return await client.generate(item.format([]))  # TODO history
-
-
-@ray.remote
-def offline_generate_worker(
-    client: OfflineClientBase, item_batch: Sequence[EvalItemBase]
-):
-    return client.generate(item.format([]) for item in item_batch)  # TODO history
+from eval_suite_core.metric.result import ToResultArgsBase
+from eval_suite_core.utils.collections import queue_counter
 
 
 @dataclass
 class BenchmarkExecutor:
-    def __init__(self, benchmark: BenchmarkBase, client: _ClientBase) -> None:
-        self._ben = benchmark
-        self._cli = client
+    benchmark: BenchmarkBase
+    client: _ClientBase
 
-        self._metric_result_groups = MetricResultGroups()
+    metric_graph: MetricGraph
 
-        self._batch_queue_map, self._eval_graph = self.create_eval_graph()
+    item_queue: aio.Queue[EvalItemBase | None] = aio.Queue()
+    eval_queue: aio.Queue[ToResultArgsBase | None] = aio.Queue()
+    regenerate_queue: aio.Queue[EvalID | None] = aio.Queue()
 
-        self._item_queue: aio.Queue[EvalItemBase | None] = aio.Queue(
-            maxsize=self._cli.config.batch_size
-        )
-        self._eval_queue: aio.Queue[ToResultArgsBase | None] = aio.Queue(
-            maxsize=self._cli.config.batch_size
-        )
-        self._regenerate_queue: aio.Queue[EvalID | None] = aio.Queue()
-
-    @cached_property
-    def ordered_metrics(self) -> list[_MetricBase]:
-        """Topologically sort metrics."""
-
-        metrics: OrderedSet[_MetricBase] = OrderedSet()
-        stack: list[_MetricBase] = [*self._ben.metrics.values()]
-
-        while stack:
-            metric = stack.pop()
-            metrics.add(metric)
-            stack.extend(metric.prec)
-
-        return list(reversed(metrics))  # reverse to get the real topological order
-
-    def create_eval_graph(self):
-        node_lookup: dict[_MetricBase, FunctionNode] = {}
-        queue_lookup: dict[MetricID, Queue] = {}
-
-        with InputNode() as input_node:
-            # build ray DAG by traversing metrics topologically
-            for metric in self.ordered_metrics:
-                prec = [
-                    (metric.id, node_lookup[metric])  #
-                    for metric in metric.prec
-                ]
-                match metric:
-                    case MetricBase():
-                        node_lookup[metric] = eval_worker.bind(
-                            metric, input_node, *prec
-                        )
-                    case AsyncMetricBase():
-                        node_lookup[metric] = async_eval_worker.bind(metric, input_node)
-                    case BatchMetricBase() | AsyncBatchMetricBase():
-                        queue = queue_lookup[metric.id] = Queue()
-                        node_lookup[metric] = batch_eval_receiver.bind(
-                            metric, input_node, queue
-                        )
-
-        async def execute(
-            input: ToResultArgsBase,
-        ) -> Mapping[MetricID, EvalResultBase | ExceptionEvalResult]:
-            tail_metrics = list(self._ben.metrics.values())
-            nodes = [node_lookup[metric] for metric in tail_metrics]
-            results = await aio.gather(
-                *(node.execute(input) for node in nodes), return_exceptions=True
+    @classmethod
+    @asynccontextmanager
+    async def create(cls, benchmark: BenchmarkBase, client: _ClientBase):
+        async with MetricGraph.create(
+            ordered_metrics=benchmark.ordered_metrics,
+            sink_metrics=benchmark.metrics,
+        ) as metric_graph:
+            yield cls(
+                benchmark=benchmark,
+                client=client,
+                metric_graph=metric_graph,
             )
-            results = [
-                ExceptionEvalResult.from_exception(result)
-                if isinstance(result, BaseException)
-                else cast(EvalResultBase, result)
-                for result in results
-            ]
-
-            return {metric.id: result for metric, result in zip(tail_metrics, results)}
-
-        return queue_lookup, execute
 
     async def generate_worker(self, tg: aio.TaskGroup):
         item_batch: list[EvalItemBase] = []
 
-        while item := await self._item_queue.get():
-            match self._cli:
+        while item := await self.item_queue.get():
+            match self.client:
                 case OnlineClientBase() as cli:
                     raise NotImplementedError
                 case OfflineClientBase() as cli:
@@ -137,25 +51,25 @@ class BenchmarkExecutor:
 
     async def eval_worker(self, tg: aio.TaskGroup):
         async def execute(input: ToResultArgsBase):
-            results = await self._eval_graph(input)
-            self._metric_result_groups.merge(results)
-            self._eval_queue.task_done()
+            results = await self.metric_graph.execute(input)
+            # TODO send results to result collection
+            self.eval_queue.task_done()
 
         batch_size_lookup: dict[int, list[MetricID]] = {}
 
-        async for input, count in queue_counter(self._eval_queue):
+        async for input, count in queue_counter(self.eval_queue):
             tg.create_task(execute(input))
             # TODO when input enough, create a batch_eval_worker task
 
-        self._eval_queue.task_done()
-        await self._eval_queue.join()
+        self.eval_queue.task_done()
+        await self.eval_queue.join()
 
         raise NotImplementedError("Not implemented yet")
 
     async def item_stream(self):
         items = [
-            self._ben._Item.model_validate(raw_item)  #
-            for raw_item in self._ben.dataset
+            self.benchmark._Item.model_validate(raw_item)  #
+            for raw_item in self.benchmark.dataset
         ]
 
         def with_sample_id(item: EvalItemBase, sample_id: SampleID) -> EvalItemBase:
@@ -164,15 +78,15 @@ class BenchmarkExecutor:
             return ret
 
         # n_samples not reached, simply yield
-        n_samples = self._ben.config.n_samples
+        n_samples = self.benchmark.config.n_samples
         for sample_id, item in product(range(1, n_samples + 1), items):
             yield with_sample_id(item, SampleID(sample_id))
 
         item_lookup = {item.item_id: item for item in items}
-        max_n_samples = self._ben.config.max_n_samples
+        max_n_samples = self.benchmark.config.max_n_samples
 
         # n_samples reached, wait for retry
-        while eval_id := await self._regenerate_queue.get():
+        while eval_id := await self.regenerate_queue.get():
             input_id = eval_id.item_id
             prev_sample_id = eval_id.sample_id
             curr_sample_id = SampleID(prev_sample_id + 1)
@@ -181,7 +95,7 @@ class BenchmarkExecutor:
             if not (max_n_samples and curr_sample_id > max_n_samples):
                 yield with_sample_id(item_lookup[input_id], curr_sample_id)
 
-            self._regenerate_queue.task_done()
+            self.regenerate_queue.task_done()
 
     async def run(self):
         async with aio.TaskGroup() as tg:
@@ -189,6 +103,6 @@ class BenchmarkExecutor:
             eval_worker = tg.create_task(self.eval_worker(tg))
 
             async for item in self.item_stream():
-                await self._item_queue.put(item)
+                await self.item_queue.put(item)
 
         raise NotImplementedError

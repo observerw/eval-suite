@@ -1,10 +1,14 @@
 from collections import Counter
 from pathlib import Path
-from typing import Annotated, Self
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Self, overload
 
 from pydantic import AfterValidator, BaseModel, Field
 
+from eval_suite_core.metric.base import MetricID
 from eval_suite_core.metric.result import RawEvalResultGroups
+
+if TYPE_CHECKING:
+    from eval_suite_core.metric.base import _MetricBase
 
 
 class EvalStatFile(BaseModel):
@@ -23,7 +27,7 @@ class EvalStatFile(BaseModel):
 class EvalStatBase(BaseModel):
     model_config = {"frozen": True}
 
-    extra_files: list[EvalStatFile] = []
+    extra_files: ClassVar[list[EvalStatFile]] = []
     """Extra files to be included as a part of the evaluation result"""
 
 
@@ -68,3 +72,23 @@ class BaseEvalStat(EvalStatBase):
             total_samples=total_samples,
             total_inputs=total_inputs,
         )
+
+
+# metric-stat 1-to-1 mapping
+class EvalStatMap(dict[MetricID, EvalStatBase]):
+    @overload
+    def __getitem__[Stat: EvalStatBase](
+        self, key: _MetricBase[Any, Any, Stat]
+    ) -> Stat: ...
+
+    @overload
+    def __getitem__(self, key: _MetricBase) -> EvalStatBase: ...
+
+    def __getitem__[Stat: EvalStatBase](
+        self, key: _MetricBase[Any, Any, Stat] | MetricID
+    ) -> Stat | EvalStatBase:
+        match key:
+            case str():
+                return super().__getitem__(key)
+            case _MetricBase(id=id):
+                return super().__getitem__(id)
