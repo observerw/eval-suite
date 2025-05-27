@@ -1,56 +1,42 @@
 import os
 from abc import ABC, abstractmethod
-from collections.abc import Generator
-from contextlib import asynccontextmanager, contextmanager
-from typing import Any, ClassVar, NewType, Self, override
+from typing import ClassVar
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, PrivateAttr
 
 from eval_suite_core.metric.config import MetricConfig
-from eval_suite_core.metric.item import EvalItemBase
+from eval_suite_core.metric.id import MetricID
+from eval_suite_core.metric.item import ItemBase
 from eval_suite_core.metric.result import (
-    EvalResultBase,
-    EvalResultGroups,
+    ResultBase,
+    ResultGroups,
     ToResult,
     ToResultAsync,
-    ToResultBase,
     ToResultBatch,
     ToResultBatchAsync,
 )
-from eval_suite_core.metric.stat import BaseEvalStat, EvalStatBase, EvalStatMap
+from eval_suite_core.metric.stat import BaseStat, StatBase, StatMap
 from eval_suite_core.metric.typevar import TypeVarMixin
 
-MetricID = NewType("MetricID", str)
 
-
-class _MetricBase[
-    Item: EvalItemBase,
-    Result: EvalResultBase,
-    Stat: EvalStatBase,
+class AnyMetric[
+    Item: ItemBase,
+    Result: ResultBase,
+    Stat: StatBase,
 ](BaseModel, TypeVarMixin, ABC):
     model_config = {"frozen": True}
 
     name: ClassVar[str]
     """Name of the metric"""
 
-    config: MetricConfig
+    config: ClassVar[MetricConfig]
     """Configuration of the metric"""
 
     _id: UUID = PrivateAttr(default_factory=uuid4)
 
     def __hash__(self) -> int:
-        return hash(self.name)
-
-    @classmethod
-    @contextmanager
-    def create(cls, *, config: MetricConfig) -> Generator[Self, None, None]:
-        yield cls(config=config)
-
-    @classmethod
-    @asynccontextmanager
-    async def create_async(cls, *, config: MetricConfig):
-        yield cls(config=config)
+        return self._id.int
 
     @property
     def _Item(self) -> type[Item]:
@@ -71,55 +57,38 @@ class _MetricBase[
         return MetricID(self._id.hex)
 
     @property
-    def prec(self) -> "set[_MetricBase]":
+    def prec(self) -> "set[AnyMetric]":
         """All precursors of the metric."""
 
         return {
             metric  #
             for metric in dict(self).values()
-            if isinstance(metric, _MetricBase)
+            if isinstance(metric, AnyMetric)
         }
-
-    @override
-    def model_post_init(self, context: Any) -> None:
-        assert isinstance(self, ToResultBase), (
-            "Metric must implement one of the `to_result` method."
-        )
 
     @abstractmethod
     def to_stat(
-        self,
-        groups: EvalResultGroups[Result],
-        base: BaseEvalStat,
-        prec: EvalStatMap,
+        self, groups: ResultGroups[Result], base: BaseStat, prec: StatMap
     ) -> Stat:
         """Statistics of the metric."""
 
 
-class MetricBase[
-    Item: EvalItemBase,
-    Result: EvalResultBase,
-    Stat: EvalStatBase,
-](
-    _MetricBase[Item, Result, Stat],
+class MetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
+    AnyMetric[Item, Result, Stat],
     ToResult[Item, Result],
 ):
     """Default metric base class. Expect to perform light-weight sync operations."""
 
     class DefaultConfig(MetricConfig): ...
 
-    config: MetricConfig = DefaultConfig()
+    config = DefaultConfig()
 
 
-type MetricDefault = MetricBase[EvalItemBase, EvalResultBase, EvalStatBase]
+type MetricDefault = MetricBase[ItemBase, ResultBase, StatBase]
 
 
-class ComputeMetricBase[
-    Item: EvalItemBase,
-    Result: EvalResultBase,
-    Stat: EvalStatBase,
-](
-    _MetricBase[Item, Result, Stat],
+class ComputeMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
+    AnyMetric[Item, Result, Stat],
     ToResult[Item, Result],
 ):
     """Compute-intensive metric base class. Expect to perform sync computations."""
@@ -128,33 +97,28 @@ class ComputeMetricBase[
         num_cpus: int = 1
         batch_size: int = os.cpu_count() or 1
 
-    config: MetricConfig = DefaultConfig()
+    config = DefaultConfig()
 
 
-class IOMetricBase[
-    Item: EvalItemBase,
-    Result: EvalResultBase,
-    Stat: EvalStatBase,
-](
-    _MetricBase[Item, Result, Stat],
+type ComputeMetricDefault = ComputeMetricBase[ItemBase, ResultBase, StatBase]
+
+
+class IOMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
+    AnyMetric[Item, Result, Stat],
     ToResultAsync[Item, Result],
 ):
     """IO-intensive metric base class. Expect to perform async IO operations."""
 
     class DefaultConfig(MetricConfig): ...
 
-    config: MetricConfig = DefaultConfig()
+    config = DefaultConfig()
 
 
-type IOMetricDefault = IOMetricBase[EvalItemBase, EvalResultBase, EvalStatBase]
+type IOMetricDefault = IOMetricBase[ItemBase, ResultBase, StatBase]
 
 
-class BatchComputeMetricBase[
-    Item: EvalItemBase,
-    Result: EvalResultBase,
-    Stat: EvalStatBase,
-](
-    _MetricBase[Item, Result, Stat],
+class BatchComputeMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
+    AnyMetric[Item, Result, Stat],
     ToResultBatch[Item, Result],
 ):
     """Batch compute-intensive metric base class. Expect to perform batch sync computations."""
@@ -163,29 +127,21 @@ class BatchComputeMetricBase[
         num_cpus: int = 1
         batch_size: int = os.cpu_count() or 1
 
-    config: MetricConfig = DefaultConfig()
+    config = DefaultConfig()
 
 
-type BatchMetricDefault = BatchComputeMetricBase[
-    EvalItemBase, EvalResultBase, EvalStatBase
-]
+type BatchComputeMetricDefault = BatchComputeMetricBase[ItemBase, ResultBase, StatBase]
 
 
-class BatchIOMetricBase[
-    Item: EvalItemBase,
-    Result: EvalResultBase,
-    Stat: EvalStatBase,
-](
-    _MetricBase[Item, Result, Stat],
+class BatchIOMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
+    AnyMetric[Item, Result, Stat],
     ToResultBatchAsync[Item, Result],
 ):
     """Batch IO-intensive metric base class. Expect to perform batch async IO operations."""
 
     class DefaultConfig(MetricConfig): ...
 
-    config: MetricConfig = DefaultConfig()
+    config = DefaultConfig()
 
 
-type AsyncBatchMetricDefault = BatchIOMetricBase[
-    EvalItemBase, EvalResultBase, EvalStatBase
-]
+type BatchIOMetricDefault = BatchIOMetricBase[ItemBase, ResultBase, StatBase]

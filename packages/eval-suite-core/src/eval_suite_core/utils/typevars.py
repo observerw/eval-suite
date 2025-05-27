@@ -1,12 +1,12 @@
-from typing import TypeVar, override
+from typing import ClassVar, TypeVar, override
 
 from pydantic import BaseModel
 from pydantic._internal._generics import get_model_typevars_map
 
 
-class TypeVarsMixin(BaseModel):
-    _unresolved_typevars_map: dict[TypeVar, TypeVar] = {}
-    _resolved_typevars_map: dict[TypeVar, type] = {}
+class TypeVarsMixin:
+    _unresolved_typevars_map: ClassVar[dict[TypeVar, TypeVar]] = {}
+    _resolved_typevars_map: ClassVar[dict[TypeVar, type]] = {}
 
     @classmethod
     def typevars_map(cls) -> dict[TypeVar, type]:
@@ -19,6 +19,9 @@ class TypeVarsMixin(BaseModel):
     @override
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+
+        if not issubclass(cls, BaseModel):
+            return
 
         if not (curr_map := get_model_typevars_map(cls)):
             return

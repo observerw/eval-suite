@@ -1,13 +1,15 @@
-import json
+import asyncio as aio
+from collections.abc import Iterable, Sequence
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Self
 
-import pydantic
-import ray
 from pydantic import BaseModel, create_model
 
 from eval_suite_core.client.schema import Message
-from eval_suite_core.metric.result import EvalResultBase
+from eval_suite_core.metric.base import AnyMetric
+from eval_suite_core.metric.id import EvalID
+from eval_suite_core.metric.result import ResultMap
 from eval_suite_core.utils.ray import RayQueue
 
 
@@ -20,47 +22,78 @@ class EvalCache(BaseModel):
     generation: Message
 
     @classmethod
-    def create_schema(cls, defs: dict[str, type[EvalResultBase]]) -> type[Self]:
+    def create(cls, metrics: Iterable[AnyMetric]) -> "type[EvalCache]":
         return create_model(
-            "DerivedEvalCache",
+            "DerivedCache",
             __base__=cls,
             field_definitions={
-                metric: (Result, None) for metric, Result in defs.items()
+                metric.id: (metric._Result | None)  #
+                for metric in metrics
             },
         )
 
+
+@dataclass
+class EvalResultCollector:
+    tg: aio.TaskGroup
+
+    base_path: Path
+
+    generation_queue: RayQueue[tuple[EvalID, Message] | None] = RayQueue.create()
+    result_queue: RayQueue[ResultMap | None] = RayQueue.create()
+
+    groups: dict[EvalID, ResultMap] = {}
+
+    @asynccontextmanager
     @classmethod
-    def load(cls, path: Path) -> Self:
-        data: dict[str, Any] = {
-            "eval_path": path,
-        }
+    async def create(cls, base_path: Path):
+        async with aio.TaskGroup() as tg:
+            yield cls(
+                base_path=base_path,
+                tg=tg,
+            )
 
-        for key in cls.model_fields.keys():
-            if not (value_path := path / f".{key}.json").exists():
-                continue
+    async def spawn_generation(self):
+        while generation := await self.generation_queue.get():
+            raise NotImplementedError
 
-            value = json.loads(value_path.read_text())
-            data[key] = value
+    async def spawn_result(self):
+        while result := await self.result_queue.get():
+            self.groups.setdefault(result._eval_id, result)
 
-        return cls.model_validate(data)
+    async def spawn(self):
+        self.tg.create_task(self.spawn_generation())
 
+        raise NotImplementedError("Not implemented yet")
+
+
+@dataclass
+class EvalItemLoader:
+    tg: aio.TaskGroup
+
+    base_path: Path
+
+    collector: EvalResultCollector
+    sink_metrics: list[AnyMetric]
+
+    retry_queue: RayQueue[EvalID | None] = RayQueue.create()
+
+    @asynccontextmanager
     @classmethod
-    def try_load(cls, path: Path) -> Self | None:
-        try:
-            return cls.load(path)
-        except pydantic.ValidationError:
-            return
+    async def create(
+        cls,
+        collector: EvalResultCollector,
+        sink_metrics: Sequence[AnyMetric],
+        base_path: Path,
+    ):
+        async with aio.TaskGroup() as tg:
+            yield cls(
+                tg=tg,
+                base_path=base_path,
+                collector=collector,
+                sink_metrics=[*sink_metrics],
+            )
 
-    def update(self, metric: str, result: EvalResultBase) -> Self:
-        if not hasattr(self, metric):
-            raise ValueError(f"Metric {metric} not found in cache.")
-
-        (self.eval_path / f".{metric}.json").write_text(result.model_dump_json())
-        setattr(self, metric, result)
-
-        return self
-
-
-@ray.remote
-class EvalResultCollection:
-    queue: RayQueue[EvalResultBase]
+    async def spawn(self):
+        while eval_id := await self.retry_queue.get():
+            raise NotImplementedError

@@ -7,7 +7,7 @@ from eval_suite_core.benchmark import BenchmarkBase, EvalConfig
 from eval_suite_core.client import Message
 from eval_suite_core.command import CommandBase
 from eval_suite_core.exception import EvalException
-from eval_suite_core.metric import EvalItemBase, EvalResultMap, ItemID
+from eval_suite_core.metric import ItemBase, ResultMap, ItemID
 from eval_suite_core.prompt import ChatSequence
 from eval_suite_kit.client.dummy import OfflineDummyClient
 from eval_suite_kit.metric import pass_k
@@ -50,7 +50,7 @@ class ResultType(str, Enum):
 # ------------------------ ✅ Step 2: Define the schema ----------------------- #
 
 
-class EvalItem(EvalItemBase):
+class EvalItem(ItemBase):
     """
     Schema of the dataset specified in <https://huggingface.co/datasets/openai/openai_humaneval>.
     """
@@ -97,7 +97,7 @@ class PassKMetric(
     # because we only need to run the python docker container here.
     @override
     async def to_result(
-        self, eval_path: Path, item: EvalItem, generation: Message, prec: EvalResultMap
+        self, eval_path: Path, item: EvalItem, generation: Message, prec: ResultMap
     ) -> pass_k.EvalResult:
         if not (result := extract_code(generation.content).get("python", id="result")):
             raise ValueError("No code found in the generation")

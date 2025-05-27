@@ -4,7 +4,7 @@ from typing import Any, Self
 from jinja2 import Template
 from pydantic import BaseModel
 
-from eval_suite_core.metric.item import EvalItemBase
+from eval_suite_core.metric.item import ItemBase
 from eval_suite_core.prompt.formatter import FormatterBase
 from eval_suite_core.prompt.schema import (
     ChatItem,
@@ -78,7 +78,7 @@ class ChatTemplatePlaceholder(BaseModel):
         return value
 
 
-class ChatTemplate[Item: EvalItemBase](BaseModel):
+class ChatTemplate[Item: ItemBase](BaseModel):
     parts: list[ChatTemplatePart] = []
     formatters: list[FormatterBase] = []
 

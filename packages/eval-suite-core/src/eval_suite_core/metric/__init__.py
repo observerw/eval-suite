@@ -1,13 +1,13 @@
 from .base import (
+    BatchComputeMetricBase,
     BatchIOMetricBase,
     IOMetricBase,
-    BatchComputeMetricBase,
     MetricBase,
 )
 from .config import MetricConfig
-from .item import EvalItemBase, ItemID
-from .result import EvalResultBase, EvalResultGroups, EvalResultMap
-from .stat import BaseEvalStat, EvalStatBase, EvalStatFile, EvalStatMap
+from .item import ItemBase, ItemID
+from .result import ResultBase, ResultGroups, ResultMap, ToResultArgs
+from .stat import BaseStat, StatBase, StatMap, StatFile
 
 __all__ = [
     "BatchIOMetricBase",
@@ -15,14 +15,15 @@ __all__ = [
     "BatchComputeMetricBase",
     "MetricBase",
     "MetricConfig",
-    "EvalItemBase",
+    "ItemBase",
     "ItemID",
-    "EvalResultBase",
-    "EvalResultGroups",
-    "BaseEvalStat",
-    "EvalStatBase",
-    "EvalStatFile",
-    "EvalStatFile",
-    "EvalResultMap",
-    "EvalStatMap",
+    "ResultBase",
+    "ResultGroups",
+    "BaseStat",
+    "StatBase",
+    "StatFile",
+    "StatFile",
+    "ResultMap",
+    "StatMap",
+    "ToResultArgs",
 ]

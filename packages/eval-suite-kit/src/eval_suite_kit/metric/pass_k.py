@@ -8,18 +8,18 @@ from eval_suite_core.client import Message
 from eval_suite_core.exception import BaseEvalResultType, EvalException
 from eval_suite_core.metric import (
     IOMetricBase,
-    BaseEvalStat,
-    EvalItemBase,
-    EvalResultBase,
-    EvalResultGroups,
-    EvalResultMap,
-    EvalStatBase,
-    EvalStatMap,
+    BaseStat,
+    ItemBase,
+    ResultBase,
+    ResultGroups,
+    ResultMap,
+    StatBase,
+    StatMap,
 )
 from pydantic import Field
 
 
-class EvalResult(EvalResultBase):
+class EvalResult(ResultBase):
     passed: bool = True
     """Whether the code passed the unit test"""
 
@@ -58,12 +58,12 @@ class _EvalResultGroup:
         return pass_k(n=self.n, c=self.c, k=k)
 
 
-class EvalStat(EvalStatBase):
+class EvalStat(StatBase):
     k: int
     pass_n: dict[str, float]
 
 
-class Metric[Item: EvalItemBase](IOMetricBase[Item, EvalResult, EvalStat]):
+class Metric[Item: ItemBase](IOMetricBase[Item, EvalResult, EvalStat]):
     """Metric to calculate pass@k for a group of results"""
 
     k: int = Field(default=5, ge=1)
@@ -72,15 +72,15 @@ class Metric[Item: EvalItemBase](IOMetricBase[Item, EvalResult, EvalStat]):
     @abstractmethod
     @override
     async def to_result(
-        self, eval_path: Path, item: Item, generation: Message, prec: EvalResultMap
+        self, eval_path: Path, item: Item, generation: Message, prec: ResultMap
     ) -> EvalResult:
         return await super().to_result(eval_path, item, generation, prec)
 
     @override
     def to_stat(
         self,
-        groups: EvalResultGroups[EvalResult],
-        base: BaseEvalStat,
-        prec: EvalStatMap,
+        groups: ResultGroups[EvalResult],
+        base: BaseStat,
+        prec: StatMap,
     ) -> EvalStat:
         return super().to_stat(groups, base, prec)

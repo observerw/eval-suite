@@ -11,25 +11,25 @@ from typing import (
     overload,
 )
 
-from pydantic import BaseModel, PrivateAttr
+from pydantic import BaseModel, PrivateAttr, RootModel
 
 from eval_suite_core.client.schema import Message
 from eval_suite_core.exception import BaseEvalResultType, EvalException
-from eval_suite_core.metric.base import MetricID
-from eval_suite_core.metric.item import EvalID, EvalItemBase, ItemID
+from eval_suite_core.metric.base import AnyMetric, MetricID
+from eval_suite_core.metric.id import MetricEvalID
+from eval_suite_core.metric.item import EvalID, ItemBase, ItemID
 
 if TYPE_CHECKING:
-    from eval_suite_core.metric.base import _MetricBase
+    pass
 
 
-class EvalResultBase(BaseModel):
+class ResultBase(BaseModel):
     model_config = {"frozen": True}
 
     result_type: Literal["regular"] = "regular"
     type: str = BaseEvalResultType.success
 
-    _eval_id: EvalID = PrivateAttr()
-    _metric: MetricID = PrivateAttr()
+    _id: MetricEvalID = PrivateAttr()
 
     @classmethod
     def from_exception(cls, exc: EvalException) -> Self:
@@ -51,7 +51,7 @@ class EvalResultBase(BaseModel):
 
 
 @final
-class ExceptionEvalResult(BaseModel):
+class ExceptionResult(BaseModel):
     model_config = {"frozen": True}
 
     result_type: Literal["exception"] = "exception"
@@ -59,8 +59,7 @@ class ExceptionEvalResult(BaseModel):
     type: str = BaseEvalResultType.fail
     message: str | None = None
 
-    _eval_id: EvalID = PrivateAttr()
-    _metric: str = PrivateAttr()
+    _id: MetricEvalID = PrivateAttr()
 
     @classmethod
     def from_exception(cls, exc: BaseException) -> Self:
@@ -68,14 +67,14 @@ class ExceptionEvalResult(BaseModel):
         return cls(message=exc.message, type=exc.type)
 
 
-class EvalResultGroups[Result: EvalResultBase](dict[ItemID, list[Result]]):
-    def flatten(self) -> list[Result]:
-        return [result for group in self.values() for result in group]
+class ResultGroups[Result: ResultBase](dict[ItemID, list[Result]]):
+    def flatten(self) -> Iterable[Result]:
+        return (result for group in self.values() for result in group)
 
 
-class RawEvalResultGroups(dict[ItemID, list[EvalResultBase | ExceptionEvalResult]]):
-    def filter(self, n_samples: int) -> EvalResultGroups:
-        return EvalResultGroups(
+class RawResultGroups(dict[ItemID, list[ResultBase | ExceptionResult]]):
+    def filter(self, n_samples: int) -> ResultGroups:
+        return ResultGroups(
             {
                 item_id: filtered_results
                 for item_id, results in self.items()
@@ -85,7 +84,7 @@ class RawEvalResultGroups(dict[ItemID, list[EvalResultBase | ExceptionEvalResult
                         result
                         for result in results
                         # not exception
-                        if not isinstance(result, ExceptionEvalResult)
+                        if not isinstance(result, ExceptionResult)
                     ]
                 )
                 >= n_samples
@@ -93,56 +92,53 @@ class RawEvalResultGroups(dict[ItemID, list[EvalResultBase | ExceptionEvalResult
         )
 
 
-# class ResultRecorder(BaseModel):
-#     records: dict[MetricID, RawEvalResultGroups] = {}
+class ResultMap(RootModel[dict[MetricID, ResultBase]]):
+    root: dict[MetricID, ResultBase]
 
-#     def update(self, update: Mapping[MetricID, EvalResultBase | ExceptionEvalResult]):
-#         # TODO check finished
+    _eval_id: EvalID = PrivateAttr()
 
-#         for metric_id, result in update.items():
-#             (
-#                 self.records.setdefault(metric_id, RawEvalResultGroups())
-#                 .setdefault(result._eval_id.item_id, [])
-#                 .append(result)
-#             )
-
-
-# metric-result 1-to-1 mapping
-class EvalResultMap(dict[MetricID, EvalResultBase]):
     @classmethod
-    def create(cls, results: Iterable[EvalResultBase]) -> Self:
-        return cls({result._metric: result for result in results})
+    def create(cls, results: Iterable[ResultBase]) -> Self:
+        return cls(root={result._id.metric: result for result in results})
 
     @overload
-    def __getitem__[Result: EvalResultBase](  # little type trick to extract the type
-        self, key: _MetricBase[Any, Result, Any]
+    def __getitem__[Result: ResultBase](
+        self, key: AnyMetric[Any, Result, Any]
     ) -> Result: ...
 
     @overload
-    def __getitem__(self, key: MetricID) -> EvalResultBase: ...
+    def __getitem__(self, key: MetricID) -> ResultBase: ...
 
-    def __getitem__[Result: EvalResultBase](
-        self, key: _MetricBase[Any, Result, Any] | MetricID
-    ) -> Result | EvalResultBase:
+    def __getitem__[Result: ResultBase](
+        self, key: AnyMetric[Any, Result, Any] | MetricID
+    ) -> Result | ResultBase:
         match key:
             case str():
-                return super().__getitem__(key)
-            case _MetricBase(id=id):
-                return super().__getitem__(id)
+                return self.root[key]
+            case AnyMetric(id=id):
+                return self.root[id]
+
+    def validate_metrics(self, metrics: Iterable[AnyMetric]):
+        """Validate that all metrics are present in the result map."""
+
+        if any(metric.id not in self.root for metric in metrics):
+            raise ValueError("Not all metrics are present in the result map.")
 
 
-class ToResultArgsBase[Item: EvalItemBase](NamedTuple):
+class ToResultArgsBase(NamedTuple):
     eval_path: Path
-    item: Item
+    item: ItemBase
     generation: Message
 
+    # load by cache
+    result: ResultBase | None = None
+
     @property
-    def _eval_id(self) -> EvalID:
+    def eval_id(self) -> EvalID:
         return self.item._eval_id
 
 
-# for some reason, deriving `ToResultArgsBase` doesn't work as expected
-class ToResultArgs[Item: EvalItemBase](NamedTuple):
+class ToResultArgs[Item: ItemBase](NamedTuple):
     eval_path: Path
     """The output path of the evaluation. Can be used to store temporary files."""
 
@@ -152,7 +148,7 @@ class ToResultArgs[Item: EvalItemBase](NamedTuple):
     generation: Message
     """The generated content."""
 
-    prec: EvalResultMap
+    prec: ResultMap
     """The previous result map."""
 
 
@@ -163,14 +159,14 @@ class ToResultBase(ABC):
     """
 
 
-class ToResult[Item: EvalItemBase, Result: EvalResultBase](ToResultBase):
+class ToResult[Item: ItemBase, Result: ResultBase](ToResultBase):
     @abstractmethod
     def to_result(
         self,
         eval_path: Path,
         item: Item,
         generation: Message,
-        prec: EvalResultMap,
+        prec: ResultMap,
     ) -> Result:
         """Evaluate the generation and return a result.
 
@@ -182,14 +178,14 @@ class ToResult[Item: EvalItemBase, Result: EvalResultBase](ToResultBase):
         """
 
 
-class ToResultAsync[Item: EvalItemBase, Result: EvalResultBase](ToResultBase):
+class ToResultAsync[Item: ItemBase, Result: ResultBase](ToResultBase):
     @abstractmethod
     async def to_result(
         self,
         eval_path: Path,
         item: Item,
         generation: Message,
-        prec: EvalResultMap,
+        prec: ResultMap,
     ) -> Result:
         """Evaluate the generation and return a result.
 
@@ -201,7 +197,7 @@ class ToResultAsync[Item: EvalItemBase, Result: EvalResultBase](ToResultBase):
         """
 
 
-class ToResultBatch[Item: EvalItemBase, Result: EvalResultBase](ToResultBase):
+class ToResultBatch[Item: ItemBase, Result: ResultBase](ToResultBase):
     @abstractmethod
     def to_result(
         self,
@@ -217,12 +213,12 @@ class ToResultBatch[Item: EvalItemBase, Result: EvalResultBase](ToResultBase):
         """
 
 
-class ToResultBatchAsync[Item: EvalItemBase, Result: EvalResultBase](ToResultBase):
+class ToResultBatchAsync[Item: ItemBase, Result: ResultBase](ToResultBase):
     @abstractmethod
     async def to_result(
         self,
         args: Sequence[ToResultArgs[Item]],
-    ) -> Sequence[Result | BaseException]:
+    ) -> Iterable[Result | BaseException]:
         """Evaluate the generation and return a result.
 
         Args:

@@ -3,11 +3,11 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from eval_suite_core.metric.item import EvalItemBase
+from eval_suite_core.metric.item import ItemBase
 from eval_suite_core.prompt.schema import ChatSequence
 
 
-class FormatterBase[Item: EvalItemBase](BaseModel, ABC):
+class FormatterBase[Item: ItemBase](BaseModel, ABC):
     """Provides variables for the prompt template, based on the dataset item and the chat history."""
 
     @abstractmethod

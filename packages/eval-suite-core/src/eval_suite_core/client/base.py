@@ -14,7 +14,7 @@ from eval_suite_core.prompt.schema import ChatContent, ChatSequence
 logger = logging.getLogger(__name__)
 
 
-class _ClientBase[P: SamplingParamsBase](
+class AnyClient[P: SamplingParamsBase](
     contextlib.AbstractContextManager, BaseModel, ABC
 ):
     model: str
@@ -35,7 +35,7 @@ class _ClientBase[P: SamplingParamsBase](
         return self.model.replace("/", "_").replace(":", "_")
 
 
-class OnlineClientBase[P: SamplingParamsBase](_ClientBase[P]):
+class OnlineClientBase[P: SamplingParamsBase](AnyClient[P]):
     """
     Client for streaming inference.
 
@@ -55,7 +55,7 @@ class OnlineClientBase[P: SamplingParamsBase](_ClientBase[P]):
         return await self.generate(seq)
 
 
-class OfflineClientBase[P: SamplingParamsBase](_ClientBase[P]):
+class OfflineClientBase[P: SamplingParamsBase](AnyClient[P]):
     """
     Client for batch inference.
 
