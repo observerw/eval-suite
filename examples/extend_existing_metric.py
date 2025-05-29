@@ -45,12 +45,9 @@ class AMetric(MetricBase[EvalItem, EvalResultA, EvalStatA]):
 
     @override
     def to_stat(
-        self,
-        groups: ResultGroups[EvalResultA],
-        base: BaseStat,
-        prec: StatMap,
+        self, groups: ResultGroups[EvalResultA], base: BaseStat, prec: StatMap
     ) -> EvalStatA:
-        results = groups.flatten()
+        results = [*groups.flatten()]
         avg_a = sum(result.a for result in results) / len(results)
         return EvalStatA(avg_a=avg_a)
 
@@ -72,12 +69,9 @@ class BMetric(MetricBase[EvalItem, EvalResultB, EvalStatB]):
 
     @override
     def to_stat(
-        self,
-        groups: ResultGroups[EvalResultB],
-        base: BaseStat,
-        prec: StatMap,
+        self, groups: ResultGroups[EvalResultB], base: BaseStat, prec: StatMap
     ) -> EvalStatB:
-        results = groups.flatten()
+        results = [*groups.flatten()]
         avg_b = sum(result.b for result in results) / len(results)
         return EvalStatB(avg_b=avg_b)
 
@@ -107,10 +101,7 @@ class SumMetric(MetricBase[EvalItem, EvalResult, EvalStat]):
 
     @override
     def to_stat(
-        self,
-        groups: ResultGroups[EvalResult],
-        base: BaseStat,
-        prec: StatMap,
+        self, groups: ResultGroups[EvalResult], base: BaseStat, prec: StatMap
     ) -> EvalStat:
         stat_a = prec[self.a_metric]
         stat_b = prec[self.b_metric]

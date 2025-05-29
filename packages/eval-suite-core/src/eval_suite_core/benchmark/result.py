@@ -1,15 +1,15 @@
-import asyncio as aio
-from collections.abc import Iterable, Sequence
-from contextlib import asynccontextmanager
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, create_model, model_validator
 
+from eval_suite_core.benchmark.config import EvalConfig
 from eval_suite_core.client.schema import Message
 from eval_suite_core.metric.base import AnyMetric
-from eval_suite_core.metric.id import EvalID
-from eval_suite_core.metric.result import ResultMap
+from eval_suite_core.metric.id import EvalID, ItemID
+from eval_suite_core.metric.item import ItemBase
+from eval_suite_core.metric.result import ExceptionResult, ResultMap
 from eval_suite_core.utils.ray import RayQueue
 
 
@@ -32,68 +32,72 @@ class EvalCache(BaseModel):
             },
         )
 
+    @model_validator(mode="after")
+    def _save(self):
+        raise NotImplementedError
 
-@dataclass
-class EvalResultCollector:
-    tg: aio.TaskGroup
 
-    base_path: Path
+type MetricGraphResult = ResultMap | ExceptionResult
 
-    generation_queue: RayQueue[tuple[EvalID, Message] | None] = RayQueue.create()
-    result_queue: RayQueue[ResultMap | None] = RayQueue.create()
 
-    groups: dict[EvalID, ResultMap] = {}
+class MetricGraphResultGroups(dict[ItemID, list[MetricGraphResult]]):
+    def total_count(self, item_id: ItemID) -> int:
+        return len(self.get(item_id, []))
 
-    @asynccontextmanager
-    @classmethod
-    async def create(cls, base_path: Path):
-        async with aio.TaskGroup() as tg:
-            yield cls(
-                base_path=base_path,
-                tg=tg,
-            )
+    def result_count(self, item_id: ItemID) -> int:
+        return len(
+            [
+                result
+                for result in self.get(item_id, [])
+                if not isinstance(result, ExceptionResult)
+            ]
+        )
 
-    async def spawn_generation(self):
-        while generation := await self.generation_queue.get():
-            raise NotImplementedError
-
-    async def spawn_result(self):
-        while result := await self.result_queue.get():
-            self.groups.setdefault(result._eval_id, result)
-
-    async def spawn(self):
-        self.tg.create_task(self.spawn_generation())
-
-        raise NotImplementedError("Not implemented yet")
+    def exc_result_count(self, item_id: ItemID) -> int:
+        return self.total_count(item_id) - self.result_count(item_id)
 
 
 @dataclass
-class EvalItemLoader:
-    tg: aio.TaskGroup
-
+class Manager:
     base_path: Path
+    config: EvalConfig
+    dataset: list[ItemBase]
 
-    collector: EvalResultCollector
-    sink_metrics: list[AnyMetric]
+    generation_queue: RayQueue[tuple[EvalID, Message]] = RayQueue.create()
+    result_queue: RayQueue[MetricGraphResult] = RayQueue.create()
+    retry_queue: RayQueue[ItemID] = RayQueue.create()
 
-    retry_queue: RayQueue[EvalID | None] = RayQueue.create()
+    groups: MetricGraphResultGroups = MetricGraphResultGroups()
 
-    @asynccontextmanager
-    @classmethod
-    async def create(
-        cls,
-        collector: EvalResultCollector,
-        sink_metrics: Sequence[AnyMetric],
-        base_path: Path,
-    ):
-        async with aio.TaskGroup() as tg:
-            yield cls(
-                tg=tg,
-                base_path=base_path,
-                collector=collector,
-                sink_metrics=[*sink_metrics],
-            )
+    def is_finished(self, item_id: ItemID) -> bool:
+        """Check if item has sufficient results (>= n_samples) or excceeded max retries (>= max_n_samples)."""
+
+        result_count = self.groups.result_count(item_id)
+        exc_result_count = self.groups.exc_result_count(item_id)
+
+        if result_count >= self.config.n_samples:
+            return True
+
+        if (max_n := self.config.max_n_samples) and exc_result_count >= max_n:
+            return True
+
+        return False
+
+    async def item_stream(self):
+        """Stream items from the dataset and retry queue."""
+
+        max_n = self.config.max_n_samples
+        item_lookup = {item.item_id: item for item in self.dataset}
+
+        for sample_id, item in enumerate(self.dataset, start=1):
+            yield item.model_copy(update={"_sample_id": sample_id})
+
+        async for item_id in self.retry_queue:
+            result_count = self.groups.result_count(item_id)
+            if not (max_n and result_count >= max_n):
+                yield item_lookup[item_id].model_copy(
+                    update={"_sample_id": result_count + 1}
+                )
 
     async def spawn(self):
-        while eval_id := await self.retry_queue.get():
-            raise NotImplementedError
+        raise NotImplementedError

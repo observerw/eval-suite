@@ -1,10 +1,11 @@
 import contextlib
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from pydantic._internal._generics import get_model_typevars_map
 
 from eval_suite_core.benchmark.config import EvalConfig
@@ -18,7 +19,8 @@ from eval_suite_core.utils._internal import _INTERNAL
 from eval_suite_core.utils.collections import OrderedSet
 
 
-class BenchmarkResult(BaseModel):
+@dataclass
+class BenchmarkResult:
     base: BaseStat
     results: ResultMap
     stat: StatMap
@@ -37,7 +39,7 @@ class BenchmarkBase[Item: ItemBase](BaseModel, contextlib.AbstractContextManager
     base_path: Path | None = None
     """The base path to store the evaluation results."""
 
-    _internal: _INTERNAL = Field()
+    _internal: _INTERNAL
     """Placeholder field for prevent instance creation from __init__ directly."""
 
     @cached_property

@@ -1,8 +1,6 @@
-import contextlib
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
-from typing import override
 
 from pydantic import BaseModel
 
@@ -14,20 +12,10 @@ from eval_suite_core.prompt.schema import ChatContent, ChatSequence
 logger = logging.getLogger(__name__)
 
 
-class AnyClient[P: SamplingParamsBase](
-    contextlib.AbstractContextManager, BaseModel, ABC
-):
+class AnyClient[P: SamplingParamsBase](BaseModel, ABC):
     model: str
     sampling_params: P
     config: ClientConfig = ClientConfig()
-
-    @override
-    def __enter__(self):
-        return self
-
-    @override
-    def __exit__(self, *exc_details):
-        return
 
     @property
     def path_name(self) -> str:

@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import (
-    TYPE_CHECKING,
     Any,
     Literal,
     NamedTuple,
@@ -19,9 +18,6 @@ from eval_suite_core.metric.base import AnyMetric, MetricID
 from eval_suite_core.metric.id import MetricEvalID
 from eval_suite_core.metric.item import EvalID, ItemBase, ItemID
 
-if TYPE_CHECKING:
-    pass
-
 
 class ResultBase(BaseModel):
     model_config = {"frozen": True}
@@ -35,7 +31,7 @@ class ResultBase(BaseModel):
     def from_exception(cls, exc: EvalException) -> Self:
         """Retrieve a result from an exception.
 
-        If the exception cannot be converted to a result, re-raise it.
+        It is required to re-raise the exception if it cannot be converted to a result.
 
         Args:
             exc (EvalException): The exception to retrieve the result from.
@@ -59,7 +55,9 @@ class ExceptionResult(BaseModel):
     type: str = BaseEvalResultType.fail
     message: str | None = None
 
-    _id: MetricEvalID = PrivateAttr()
+    # ExceptionResult represents the first exception that occurred during metric graph execution,
+    # so `_id` do not need to be specific to a metric.
+    _id: EvalID = PrivateAttr()
 
     @classmethod
     def from_exception(cls, exc: BaseException) -> Self:
@@ -67,11 +65,13 @@ class ExceptionResult(BaseModel):
         return cls(message=exc.message, type=exc.type)
 
 
+# item -> *result
 class ResultGroups[Result: ResultBase](dict[ItemID, list[Result]]):
     def flatten(self) -> Iterable[Result]:
         return (result for group in self.values() for result in group)
 
 
+# item -> *(result | exception)
 class RawResultGroups(dict[ItemID, list[ResultBase | ExceptionResult]]):
     def filter(self, n_samples: int) -> ResultGroups:
         return ResultGroups(
@@ -92,6 +92,7 @@ class RawResultGroups(dict[ItemID, list[ResultBase | ExceptionResult]]):
         )
 
 
+# metric -> result
 class ResultMap(RootModel[dict[MetricID, ResultBase]]):
     root: dict[MetricID, ResultBase]
 

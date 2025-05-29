@@ -7,7 +7,7 @@ from typing import Self
 
 from eval_suite_core.exception import BaseEvalResultType, EvalException
 
-type MapException = Callable[[str, str], EvalException]
+type MapExceptionFunc = Callable[[str, str], EvalException]
 
 
 def default_map_exception(stdout: str, stderr: str) -> EvalException:
@@ -23,9 +23,9 @@ class Process:
 
     process: Awaitable[sp.Process]
 
-    _map_exception: MapException = default_map_exception
+    _map_exception: MapExceptionFunc = default_map_exception
 
-    def map_exception(self, map: MapException | EvalException) -> Self:
+    def map_exception(self, map: MapExceptionFunc | EvalException) -> Self:
         match map:
             case EvalException() as exc:
                 self._map_exception = lambda _, __: exc
@@ -45,6 +45,7 @@ class Process:
             )
             if process.returncode != 0:
                 raise self._map_exception(stdout.decode(), stderr.decode())
+
             return stdout.decode().strip()
         except aio.TimeoutError:
             process.kill()

@@ -1,20 +1,45 @@
-import ray
+from inspect import isclass
+from typing import Any, ClassVar, TypeVar, override
+
+from pydantic import BaseModel, PrivateAttr
+from pydantic._internal._generics import get_model_typevars_map
 
 
-@ray.remote
-def a():
-    return 1
+class TypeVarMixin:  # FIXME
+    _typevar_map: ClassVar[dict[TypeVar, Any]] = PrivateAttr()
+
+    @override
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+
+        if not issubclass(cls, BaseModel) or cls is BaseModel:
+            return
+
+        if not (curr_map := get_model_typevars_map(cls)):
+            return
+
+        if all_map := cls._typevar_map:
+            for typevar, typ in all_map.items():
+                if isinstance(typ, TypeVar) and (realtype := curr_map.get(typ)):
+                    all_map[typevar] = realtype
+        else:
+            cls._typevar_map = curr_map
+
+    def _resolve_typevar(self, typevar: TypeVar) -> type:
+        assert isclass(typ := self._typevar_map.get(typevar)), (
+            f"Type {typ} is not a class"
+        )
+        return typ
 
 
-@ray.remote
-def b():
-    return 2
+class Base[A, B, C](TypeVarMixin, BaseModel): ...
 
 
-@ray.remote
-def c(a: int, b: int):
-    return a + b
+class Derived[A, C](Base[A, int, C]): ...
 
 
-c_ref = c.bind(a.bind(), b.bind())
-print(ray.get(c_ref.execute()))
+class Final(Derived[str, float]): ...
+
+
+print(Final._typevar_map)

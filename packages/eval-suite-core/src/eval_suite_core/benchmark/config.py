@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from typing import Literal, Self
 
@@ -40,13 +39,6 @@ class EvalConfig(BaseModel):
 
     with_timestamp: bool = False
     """Whether to add a timestamp to the output directory name"""
-
-    concurrency: int = Field(default=os.cpu_count() or 64)
-    """
-    Concurrency for the evaluation process. This is the number of samples to evaluate in parallel. 
-    
-    For io-bounded evaluation, you may want to set this to a higher value for better performance.
-    """
 
     n_samples: int = 1
     """Number of samples for each item"""

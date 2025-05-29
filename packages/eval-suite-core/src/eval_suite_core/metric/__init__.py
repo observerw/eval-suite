@@ -5,9 +5,9 @@ from .base import (
     MetricBase,
 )
 from .config import MetricConfig
-from .item import ItemBase, ItemID
+from .item import InstructItemBase, ItemBase, ItemID
 from .result import ResultBase, ResultGroups, ResultMap, ToResultArgs
-from .stat import BaseStat, StatBase, StatMap, StatFile
+from .stat import BaseStat, StatBase, StatFile, StatMap
 
 __all__ = [
     "BatchIOMetricBase",
@@ -15,6 +15,7 @@ __all__ = [
     "BatchComputeMetricBase",
     "MetricBase",
     "MetricConfig",
+    "InstructItemBase",
     "ItemBase",
     "ItemID",
     "ResultBase",

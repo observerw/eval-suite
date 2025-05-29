@@ -1,7 +1,7 @@
 [project]
 name = "eval-suite-core"
 version = "0.1.0"
-description = "Add your description here"
+description = "Core library for Eval-Suite, providing essential functionalities for evaluation tasks."
 readme = "README.md"
 authors = [{ name = "observer", email = "wozluohd@gmail.com" }]
 requires-python = ">=3.12"

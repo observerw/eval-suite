@@ -25,6 +25,8 @@ class AnyMetric[
     Result: ResultBase,
     Stat: StatBase,
 ](BaseModel, TypeVarMixin, ABC):
+    """Base class for all types of metrics."""
+
     model_config = {"frozen": True}
 
     name: ClassVar[str]

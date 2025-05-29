@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import ClassVar
 
 from pydantic import BaseModel
 
@@ -7,16 +7,14 @@ from eval_suite_core.metric.item import ItemBase
 from eval_suite_core.prompt.schema import ChatSequence
 
 
+class FormatFields(BaseModel):
+    model_config = {"frozen": True}
+
+
 class FormatterBase[Item: ItemBase](BaseModel, ABC):
-    """Provides variables for the prompt template, based on the dataset item and the chat history."""
+    name: str
+
+    Fields: ClassVar[type[FormatFields]]
 
     @abstractmethod
-    def provide(
-        self,
-        item: Item,
-        *,
-        history: ChatSequence | None = None,
-    ) -> dict[str, Any]:
-        """
-        Provide the variables to be used for rendering the prompt template.
-        """
+    def provide(self, item: Item, history: ChatSequence) -> FormatFields: ...

@@ -4,9 +4,7 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-    "sunray>=0.13.0",
-]
+dependencies = []
 
 [tool.uv.workspace]
 members = ["packages/*"]
