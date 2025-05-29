@@ -10,6 +10,7 @@ from eval_suite_core.metric.base import AnyMetric
 from eval_suite_core.metric.id import EvalID, ItemID
 from eval_suite_core.metric.item import ItemBase
 from eval_suite_core.metric.result import ExceptionResult, ResultMap
+from eval_suite_core.prompt.schema import ChatSequence
 from eval_suite_core.utils.ray import RayQueue
 
 
@@ -68,6 +69,7 @@ class Manager:
     retry_queue: RayQueue[ItemID] = RayQueue.create()
 
     groups: MetricGraphResultGroups = MetricGraphResultGroups()
+    histories: dict[ItemID, ChatSequence] = {}
 
     def is_finished(self, item_id: ItemID) -> bool:
         """Check if item has sufficient results (>= n_samples) or excceeded max retries (>= max_n_samples)."""

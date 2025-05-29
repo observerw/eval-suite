@@ -1,6 +1,7 @@
 import base64
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from typing import Any, NewType, Self
 
@@ -8,7 +9,10 @@ from jinja2 import Template
 from pydantic import BaseModel
 
 from eval_suite_core.metric.item import ItemBase
-from eval_suite_core.prompt.formatter import FormatterBase
+from eval_suite_core.prompt.formatter import (
+    AnyFormatter,
+    FormatterBase,
+)
 from eval_suite_core.prompt.schema import (
     ChatItem,
     ChatSequence,
@@ -120,20 +124,27 @@ def history_placeholder() -> _HISTORY:
     return _HISTORY(None)
 
 
+type ChatTemplateCompose = (
+    ChatTemplatePart | ChatItem | ChatTemplatePlaceholder | _HISTORY
+)
+
+
 @dataclass
 class ChatTemplate[Item: ItemBase]:
-    parts: list[ChatTemplatePart | ChatItem | ChatTemplatePlaceholder | _HISTORY] = []
-    formatters: list[FormatterBase | dict[str, Any]] = []
+    parts: list[ChatTemplateCompose] = []
+    formatters: list[AnyFormatter] = []
 
     @classmethod
-    def compose(
-        cls,
-        *parts: ChatTemplatePart | ChatItem | ChatTemplatePlaceholder,
-    ) -> Self:
+    def compose(cls, *parts: ChatTemplateCompose) -> Self:
         return cls(parts=[*parts])
 
-    def __or__(self, other: FormatterBase) -> Self:
-        self.formatters.append(other)
+    def __or__(self, formatter: AnyFormatter) -> Self:
+        match formatter:
+            case Callable() as fmt_callable:
+                self.formatters.append(cache(fmt_callable))
+            case _:
+                self.formatters.append(formatter)
+
         return self
 
     def _format(self, item: Item, history: ChatSequence) -> Iterable[ChatItem]:
@@ -142,7 +153,11 @@ class ChatTemplate[Item: ItemBase]:
         for formatter in self.formatters:
             match formatter:
                 case FormatterBase() as fmt:
+                    # provided variables are cached to be reused across multiple formatter calls
                     variables[fmt.name] = fmt.provide(item=item, history=history)
+                case Callable() as fmt_callable:
+                    fmt_dict = fmt_callable(item, history)
+                    variables.update(fmt_dict)
                 case dict() as fmt_dict:
                     variables.update(fmt_dict)
 
@@ -163,5 +178,5 @@ class ChatTemplate[Item: ItemBase]:
                 case chat_item:
                     yield chat_item
 
-    def format(self, item: Item, history: ChatSequence) -> ChatSequence:
+    def format(self, item: Item, *, history: ChatSequence = []) -> ChatSequence:
         return [*self._format(item=item, history=history)]

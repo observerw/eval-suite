@@ -5,7 +5,8 @@ from pydantic import BaseModel, PrivateAttr
 
 from eval_suite_core import prompt
 from eval_suite_core.metric.id import EvalID, ItemID, SampleID
-from eval_suite_core.prompt.schema import ChatSequence
+from eval_suite_core.prompt.schema import ChatItem, ChatSequence
+from eval_suite_core.prompt.template import ChatTemplate, history_placeholder
 
 
 class ItemBase(BaseModel, ABC):
@@ -26,41 +27,25 @@ class ItemBase(BaseModel, ABC):
     def _eval_id(self) -> EvalID:
         return EvalID(self.item_id, self._sample_id)
 
-    def is_finished(self, history: ChatSequence) -> bool:
-        """
-        Check if the conversation should be considered finished.
+    def __hash__(self) -> int:
+        return hash(self._eval_id)
 
-        This method will be called after `format` method is called.
-
-        Default implementation checks if the history has more than 2 messages.
-
-        Override this method to implement custom logic for terminating the conversation.
-        """
-
-        return len(history) > 2
+    template: ChatTemplate = ChatTemplate.compose(history_placeholder())
 
     @abstractmethod
-    def format(self, history: ChatSequence) -> ChatSequence:
-        """Format a chat sequence from the item and previous history."""
+    def format(self, history: ChatSequence) -> ChatItem | None:
+        """Format a chat sequence from the item and previous history. Return None if conversation finished."""
 
 
 class InstructItemBase(ItemBase):
-    _formatted: bool = PrivateAttr(default=False)
-
     @abstractmethod
     def format_instruction(self) -> str:
         """Format a single instruction (i.e., a single user message) from the item."""
 
     @override
     @final
-    def is_finished(self, history: ChatSequence) -> bool:
-        if self._formatted:
-            return True
+    def format(self, history: ChatSequence) -> ChatItem | None:
+        if history:
+            return
 
-        self._formatted = True
-        return False
-
-    @override
-    @final
-    def format(self, history: ChatSequence) -> ChatSequence:
-        return [prompt.user(self.format_instruction())]
+        return prompt.user(self.format_instruction())
