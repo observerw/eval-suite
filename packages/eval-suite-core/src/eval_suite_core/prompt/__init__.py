@@ -9,6 +9,7 @@ from .schema import (
 )
 from .template import (
     assistant_template,
+    history_placeholder,
     system_template,
     template_placeholder,
     user_template,
@@ -27,4 +28,5 @@ __all__ = [
     "system_template",
     "user_template",
     "template_placeholder",
+    "history_placeholder",
 ]

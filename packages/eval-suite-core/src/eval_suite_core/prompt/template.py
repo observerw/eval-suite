@@ -2,7 +2,7 @@ import base64
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, NewType, Self
 
 from jinja2 import Template
 from pydantic import BaseModel
@@ -106,16 +106,23 @@ def assistant_template(value: TemplateValue) -> ChatTemplatePart:
 
 
 class ChatTemplatePlaceholder(BaseModel):
-    id: str = "history"
+    id: str
 
 
-def template_placeholder(id: str = "history") -> ChatTemplatePlaceholder:
+def template_placeholder(id: str) -> ChatTemplatePlaceholder:
     return ChatTemplatePlaceholder(id=id)
+
+
+_HISTORY = NewType("_HISTORY", None)
+
+
+def history_placeholder() -> _HISTORY:
+    return _HISTORY(None)
 
 
 @dataclass
 class ChatTemplate[Item: ItemBase]:
-    parts: list[ChatTemplatePart | ChatItem | ChatTemplatePlaceholder] = []
+    parts: list[ChatTemplatePart | ChatItem | ChatTemplatePlaceholder | _HISTORY] = []
     formatters: list[FormatterBase | dict[str, Any]] = []
 
     @classmethod
@@ -130,7 +137,7 @@ class ChatTemplate[Item: ItemBase]:
         return self
 
     def _format(self, item: Item, history: ChatSequence) -> Iterable[ChatItem]:
-        variables: dict[str, Any] = {"history": history}
+        variables: dict[str, Any] = {}
 
         for formatter in self.formatters:
             match formatter:
@@ -151,6 +158,8 @@ class ChatTemplate[Item: ItemBase]:
                             f"got {type(sequence).__name__} instead."
                         )
                     yield from sequence
+                case _HISTORY():
+                    yield from history
                 case chat_item:
                     yield chat_item
 

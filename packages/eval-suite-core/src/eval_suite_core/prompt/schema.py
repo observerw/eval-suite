@@ -1,18 +1,24 @@
 from collections.abc import Sequence
-from typing import Literal, TypedDict
+from typing import Literal
+
+from pydantic import BaseModel
 
 
-class TextContent(TypedDict, total=False):
-    type: Literal["text"]
+class Schema(BaseModel):
+    model_config = {"frozen": True, "extra": "allow"}
+
+
+class TextContent(Schema):
+    type: Literal["text"] = "text"
     text: str
 
 
-class ImageUrl(TypedDict):
+class ImageUrl(Schema):
     url: str
 
 
-class ImageContent(TypedDict, total=False):
-    type: Literal["image_url"]
+class ImageContent(Schema):
+    type: Literal["image_url"] = "image_url"
     image_url: ImageUrl
 
 
@@ -21,7 +27,7 @@ type Role = Literal["system", "user", "assistant"]
 type ChatContent = str | list[TextContent | ImageContent]
 
 
-class ChatItem(TypedDict):
+class ChatItem(Schema):
     role: Role
     content: str | list[TextContent | ImageContent]
 
