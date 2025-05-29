@@ -26,17 +26,41 @@ class ItemBase(BaseModel, ABC):
     def _eval_id(self) -> EvalID:
         return EvalID(self.item_id, self._sample_id)
 
+    def is_finished(self, history: ChatSequence) -> bool:
+        """
+        Check if the conversation should be considered finished.
+
+        This method will be called after `format` method is called.
+
+        Default implementation checks if the history has more than 2 messages.
+
+        Override this method to implement custom logic for terminating the conversation.
+        """
+
+        return len(history) > 2
+
     @abstractmethod
-    def format(self, history: ChatSequence) -> ChatSequence | None:
-        """Format a chat sequence from the item and previous history. Return `None` if chat finished."""
+    def format(self, history: ChatSequence) -> ChatSequence:
+        """Format a chat sequence from the item and previous history."""
 
 
 class InstructItemBase(ItemBase):
+    _formatted: bool = PrivateAttr(default=False)
+
     @abstractmethod
     def format_instruction(self) -> str:
         """Format a single instruction (i.e., a single user message) from the item."""
 
     @override
     @final
-    def format(self, history: ChatSequence) -> ChatSequence | None:
+    def is_finished(self, history: ChatSequence) -> bool:
+        if self._formatted:
+            return True
+
+        self._formatted = True
+        return False
+
+    @override
+    @final
+    def format(self, history: ChatSequence) -> ChatSequence:
         return [prompt.user(self.format_instruction())]
