@@ -1,3 +1,4 @@
+from . import template as pt
 from .formatter import FormatFields, FormatterBase
 from .schema import (
     ChatContent,
@@ -8,14 +9,14 @@ from .schema import (
     user,
 )
 from .template import (
-    assistant_template,
+    ChatTemplate,
     history_placeholder,
-    system_template,
-    template_placeholder,
-    user_template,
+    placeholder,
 )
 
 __all__ = [
+    "pt",
+    "ChatTemplate",
     "FormatFields",
     "FormatterBase",
     "ChatContent",
@@ -24,9 +25,6 @@ __all__ = [
     "assistant",
     "system",
     "user",
-    "assistant_template",
-    "system_template",
-    "user_template",
-    "template_placeholder",
+    "placeholder",
     "history_placeholder",
 ]

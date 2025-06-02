@@ -8,7 +8,7 @@ from typing import Any, NewType, Self
 from jinja2 import Template
 from pydantic import BaseModel
 
-from eval_suite_core.metric.item import ItemBase
+from eval_suite_core.metric.item import ChatItemBase
 from eval_suite_core.prompt.formatter import (
     AnyFormatter,
     FormatterBase,
@@ -33,19 +33,18 @@ class TextTemplate:
     def render(self, **kwargs) -> str:
         match self.value:
             case str() as text_template:
-                template = create_template(text_template)
+                return create_template(text_template).render(**kwargs)
             case Path() as text_path:
-                template = create_template(text_path.read_text(encoding="utf-8"))
+                if text_path.suffix in {".j2", ".jinja2"}:
+                    return create_template(text_path.read_text()).render(**kwargs)
+                else:
+                    return text_path.read_text()
             case Template() as template:
-                pass
-
-        rendered_text = template.render(**kwargs)
-
-        return rendered_text
+                return template.render(**kwargs)
 
 
 @dataclass
-class ImageTemplate:
+class Image:
     value: str | Path | bytes
 
     def render(self, **kwargs) -> ImageUrl:
@@ -61,14 +60,14 @@ class ImageTemplate:
                 return ImageUrl(url=image)
 
 
-type TemplateValue = TextTemplateValue | list[TextTemplateValue | ImageTemplate]
+type TemplateValue = TextTemplateValue | list[TextTemplateValue | Image]
 
 
 def _render_content_template(
-    value: TextTemplateValue | ImageTemplate, **kwargs
+    value: TextTemplateValue | Image, **kwargs
 ) -> TextContent | ImageContent:
     match value:
-        case ImageTemplate() as image_template:
+        case Image() as image_template:
             image_url = image_template.render(**kwargs)
             return ImageContent(type="image_url", image_url=image_url)
         case text_template:
@@ -97,15 +96,15 @@ class ChatTemplatePart(BaseModel):
                 return ChatItem(role=self.role, content=text)
 
 
-def system_template(value: TemplateValue) -> ChatTemplatePart:
+def system(value: TemplateValue) -> ChatTemplatePart:
     return ChatTemplatePart(role="system", value=value)
 
 
-def user_template(value: TemplateValue) -> ChatTemplatePart:
+def user(value: TemplateValue) -> ChatTemplatePart:
     return ChatTemplatePart(role="user", value=value)
 
 
-def assistant_template(value: TemplateValue) -> ChatTemplatePart:
+def assistant(value: TemplateValue) -> ChatTemplatePart:
     return ChatTemplatePart(role="assistant", value=value)
 
 
@@ -113,15 +112,14 @@ class ChatTemplatePlaceholder(BaseModel):
     id: str
 
 
-def template_placeholder(id: str) -> ChatTemplatePlaceholder:
+def placeholder(id: str) -> ChatTemplatePlaceholder:
     return ChatTemplatePlaceholder(id=id)
 
 
 _HISTORY = NewType("_HISTORY", None)
 
 
-def history_placeholder() -> _HISTORY:
-    return _HISTORY(None)
+history_placeholder = _HISTORY(None)
 
 
 type ChatTemplateCompose = (
@@ -130,7 +128,7 @@ type ChatTemplateCompose = (
 
 
 @dataclass
-class ChatTemplate[Item: ItemBase]:
+class ChatTemplate[Item: ChatItemBase]:
     parts: list[ChatTemplateCompose] = []
     formatters: list[AnyFormatter] = []
 

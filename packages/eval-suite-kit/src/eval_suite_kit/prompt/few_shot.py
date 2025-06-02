@@ -2,11 +2,11 @@ from collections.abc import Sequence
 from random import sample
 from typing import Any, final, override
 
-from eval_suite_core.metric import ItemBase
+from eval_suite_core.metric import ChatItemBase
 from eval_suite_core.prompt import ChatSequence, FormatFields, FormatterBase
 
 
-class FewShotFormatter[Item: ItemBase](FormatterBase):
+class FewShotFormatter[Item: ChatItemBase](FormatterBase):
     name: str = "few_shot"
 
     class Fields(FormatterBase.Fields):

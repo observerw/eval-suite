@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = ["eval-suite-core", "eval-suite-kit"]
 
 [tool.uv.workspace]
 members = ["packages/*"]
+
+[tool.uv.sources]
+eval-suite-kit = { workspace = true }
+eval-suite-core = { workspace = true }

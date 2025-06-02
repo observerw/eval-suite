@@ -633,6 +633,16 @@ wheels = [
 name = "eval-suite"
 version = "0.1.0"
 source = { virtual = "." }
+dependencies = [
+    { name = "eval-suite-core" },
+    { name = "eval-suite-kit" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "eval-suite-core", editable = "packages/eval-suite-core" },
+    { name = "eval-suite-kit", editable = "packages/eval-suite-kit" },
+]
 
 [[package]]
 name = "eval-suite-core"

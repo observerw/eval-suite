@@ -3,7 +3,7 @@ from typing import override
 import numpy as np
 from eval_suite_core.metric import (
     BaseStat,
-    ItemBase,
+    ChatItemBase,
     ResultBase,
     ResultGroups,
     StatBase,
@@ -24,7 +24,7 @@ class EvalStat(StatBase):
     max: float
 
 
-class ScoreMetric[Item: ItemBase](MetricBase[Item, EvalResult, EvalStat]):
+class ScoreMetric[Item: ChatItemBase](MetricBase[Item, EvalResult, EvalStat]):
     @override
     def to_stat(
         self,

@@ -16,7 +16,7 @@ from eval_suite_core.client.schema import Message
 from eval_suite_core.exception import BaseEvalResultType, EvalException
 from eval_suite_core.metric.base import AnyMetric, MetricID
 from eval_suite_core.metric.id import MetricEvalID
-from eval_suite_core.metric.item import EvalID, ItemBase, ItemID
+from eval_suite_core.metric.item import EvalID, ChatItemBase, ItemID
 
 
 class ResultBase(BaseModel):
@@ -128,7 +128,7 @@ class ResultMap(RootModel[dict[MetricID, ResultBase]]):
 
 class ToResultArgsBase(NamedTuple):
     eval_path: Path
-    item: ItemBase
+    item: ChatItemBase
     generation: Message
 
     # load by cache
@@ -139,7 +139,7 @@ class ToResultArgsBase(NamedTuple):
         return self.item._eval_id
 
 
-class ToResultArgs[Item: ItemBase](NamedTuple):
+class ToResultArgs[Item: ChatItemBase](NamedTuple):
     eval_path: Path
     """The output path of the evaluation. Can be used to store temporary files."""
 
@@ -160,7 +160,7 @@ class ToResultBase(ABC):
     """
 
 
-class ToResult[Item: ItemBase, Result: ResultBase](ToResultBase):
+class ToResult[Item: ChatItemBase, Result: ResultBase](ToResultBase):
     @abstractmethod
     def to_result(
         self,
@@ -179,7 +179,7 @@ class ToResult[Item: ItemBase, Result: ResultBase](ToResultBase):
         """
 
 
-class ToResultAsync[Item: ItemBase, Result: ResultBase](ToResultBase):
+class ToResultAsync[Item: ChatItemBase, Result: ResultBase](ToResultBase):
     @abstractmethod
     async def to_result(
         self,
@@ -198,7 +198,7 @@ class ToResultAsync[Item: ItemBase, Result: ResultBase](ToResultBase):
         """
 
 
-class ToResultBatch[Item: ItemBase, Result: ResultBase](ToResultBase):
+class ToResultBatch[Item: ChatItemBase, Result: ResultBase](ToResultBase):
     @abstractmethod
     def to_result(
         self,
@@ -214,7 +214,7 @@ class ToResultBatch[Item: ItemBase, Result: ResultBase](ToResultBase):
         """
 
 
-class ToResultBatchAsync[Item: ItemBase, Result: ResultBase](ToResultBase):
+class ToResultBatchAsync[Item: ChatItemBase, Result: ResultBase](ToResultBase):
     @abstractmethod
     async def to_result(
         self,

@@ -7,8 +7,8 @@ from eval_suite_core.benchmark import BenchmarkBase, EvalConfig
 from eval_suite_core.client import Message
 from eval_suite_core.command import CommandBase
 from eval_suite_core.exception import EvalException
-from eval_suite_core.metric import ItemBase, ResultMap, ItemID
-from eval_suite_core.prompt import ChatSequence
+from eval_suite_core.metric import ItemID, ResultMap
+from eval_suite_core.metric.item import ItemBase
 from eval_suite_kit.client.dummy import OfflineDummyClient
 from eval_suite_kit.metric import pass_k
 from eval_suite_kit.utils.dataset import load_repo_dataset
@@ -73,8 +73,8 @@ class EvalItem(ItemBase):
         # return str(hash(self.prompt))
 
     @override
-    def format(self, history: ChatSequence) -> ChatSequence:
-        return history
+    def format_instruction(self) -> str:
+        return self.prompt
 
         # It is recommended to use `jinja2` template to manage the prompt:
         # prompt_template.render(prompt=prompt, few_shots=[])
@@ -122,25 +122,27 @@ class PassKMetric(
 
 class Benchmark(BenchmarkBase[EvalItem]):
     name = "pass@k"
+    config = EvalConfig(
+        # To get a reasonable result,
+        # we need to set the `n_samples` larger than `k`.
+        n_samples=10,
+        max_n_samples=20,
+    )
 
     pass_k: PassKMetric
 
 
 async def main():
     dataset = load_repo_dataset("openai/openai_humaneval", split="test")
+
     with (
+        PassKMetric(k=5).init() as pass_k,
         Benchmark(
             dataset=dataset,
             base_path=Path("output"),
-            pass_k=PassKMetric(k=5),
-            config=EvalConfig(
-                # To get a reasonable result,
-                # we need to set the `n_samples` larger than `k`.
-                n_samples=10,
-                max_n_samples=20,
-            ),
-        ) as benchmark,
-        OfflineDummyClient() as client,
+            pass_k=pass_k,
+        ).init() as benchmark,
+        OfflineDummyClient().init() as client,
     ):
         stat = await benchmark.run(client)
         print(stat)

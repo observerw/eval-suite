@@ -12,21 +12,19 @@ from eval_suite_core.benchmark.config import EvalConfig
 from eval_suite_core.benchmark.executor import BenchmarkExecutor
 from eval_suite_core.client.base import AnyClient
 from eval_suite_core.metric.base import AnyMetric
-from eval_suite_core.metric.item import ItemBase
+from eval_suite_core.metric.item import ChatItemBase
 from eval_suite_core.metric.result import ResultMap
-from eval_suite_core.metric.stat import BaseStat, StatMap
-from eval_suite_core.utils._internal import _INTERNAL
+from eval_suite_core.metric.stat import StatMap
 from eval_suite_core.utils.collections import OrderedSet
 
 
 @dataclass
 class BenchmarkResult:
-    base: BaseStat
     results: ResultMap
-    stat: StatMap
+    stats: StatMap
 
 
-class BenchmarkBase[Item: ItemBase](BaseModel, contextlib.AbstractContextManager):
+class BenchmarkBase[Item: ChatItemBase](BaseModel):
     name: ClassVar[str]
     """The name of the benchmark."""
 
@@ -39,11 +37,8 @@ class BenchmarkBase[Item: ItemBase](BaseModel, contextlib.AbstractContextManager
     base_path: Path | None = None
     """The base path to store the evaluation results."""
 
-    _internal: _INTERNAL
-    """Placeholder field for prevent instance creation from __init__ directly."""
-
     @cached_property
-    def _Item(self) -> type[ItemBase]:
+    def _Item(self) -> type[ChatItemBase]:
         return get_model_typevars_map(self.__class__)[Item]
 
     @cached_property
@@ -64,19 +59,10 @@ class BenchmarkBase[Item: ItemBase](BaseModel, contextlib.AbstractContextManager
 
         return list(reversed(metrics))  # reverse to get the real topological order
 
-    @contextlib.asynccontextmanager
-    @classmethod
-    async def create(
-        cls,
-        dataset: Iterable[Any],
-        base_path: Path | None = None,
-    ):
-        yield cls(
-            dataset=dataset,
-            base_path=base_path,
-            _internal=_INTERNAL(None),
-        )
+    @contextlib.contextmanager
+    def init(self):
+        yield self
 
     async def run(self, client: AnyClient) -> BenchmarkResult:
         async with BenchmarkExecutor.create(benchmark=self, client=client) as executor:
-            raise NotImplementedError
+            return await executor.run()

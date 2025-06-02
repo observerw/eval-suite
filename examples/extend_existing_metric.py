@@ -5,7 +5,7 @@ from typing import override
 from eval_suite_core.client.schema import Message
 from eval_suite_core.metric.base import MetricBase
 from eval_suite_core.metric.config import MetricConfig
-from eval_suite_core.metric.item import ItemBase, ItemID
+from eval_suite_core.metric.item import ChatItemBase, ItemID
 from eval_suite_core.metric.result import (
     ResultBase,
     ResultGroups,
@@ -15,7 +15,7 @@ from eval_suite_core.metric.stat import BaseStat, StatBase, StatMap
 from eval_suite_core.prompt.schema import ChatSequence
 
 
-class EvalItem(ItemBase):
+class EvalItem(ChatItemBase):
     id: str
 
     @property

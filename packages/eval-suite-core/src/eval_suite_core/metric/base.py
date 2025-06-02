@@ -1,3 +1,4 @@
+import contextlib
 import os
 from abc import ABC, abstractmethod
 from typing import ClassVar
@@ -7,7 +8,7 @@ from pydantic import BaseModel, PrivateAttr
 
 from eval_suite_core.metric.config import MetricConfig
 from eval_suite_core.metric.id import MetricID
-from eval_suite_core.metric.item import ItemBase
+from eval_suite_core.metric.item import ChatItemBase
 from eval_suite_core.metric.result import (
     ResultBase,
     ResultGroups,
@@ -21,7 +22,7 @@ from eval_suite_core.metric.typevar import TypeVarMixin
 
 
 class AnyMetric[
-    Item: ItemBase,
+    Item: ChatItemBase,
     Result: ResultBase,
     Stat: StatBase,
 ](BaseModel, TypeVarMixin, ABC):
@@ -36,6 +37,10 @@ class AnyMetric[
     """Configuration of the metric"""
 
     _id: UUID = PrivateAttr(default_factory=uuid4)
+
+    @contextlib.contextmanager
+    def init(self):
+        yield self
 
     def __hash__(self) -> int:
         return self._id.int
@@ -75,7 +80,7 @@ class AnyMetric[
         """Statistics of the metric."""
 
 
-class MetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
+class MetricBase[Item: ChatItemBase, Result: ResultBase, Stat: StatBase](
     AnyMetric[Item, Result, Stat],
     ToResult[Item, Result],
 ):
@@ -86,10 +91,10 @@ class MetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
     config = DefaultConfig()
 
 
-type MetricDefault = MetricBase[ItemBase, ResultBase, StatBase]
+type MetricDefault = MetricBase[ChatItemBase, ResultBase, StatBase]
 
 
-class ComputeMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
+class ComputeMetricBase[Item: ChatItemBase, Result: ResultBase, Stat: StatBase](
     AnyMetric[Item, Result, Stat],
     ToResult[Item, Result],
 ):
@@ -102,10 +107,10 @@ class ComputeMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
     config = DefaultConfig()
 
 
-type ComputeMetricDefault = ComputeMetricBase[ItemBase, ResultBase, StatBase]
+type ComputeMetricDefault = ComputeMetricBase[ChatItemBase, ResultBase, StatBase]
 
 
-class IOMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
+class IOMetricBase[Item: ChatItemBase, Result: ResultBase, Stat: StatBase](
     AnyMetric[Item, Result, Stat],
     ToResultAsync[Item, Result],
 ):
@@ -116,10 +121,10 @@ class IOMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
     config = DefaultConfig()
 
 
-type IOMetricDefault = IOMetricBase[ItemBase, ResultBase, StatBase]
+type IOMetricDefault = IOMetricBase[ChatItemBase, ResultBase, StatBase]
 
 
-class BatchComputeMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
+class BatchComputeMetricBase[Item: ChatItemBase, Result: ResultBase, Stat: StatBase](
     AnyMetric[Item, Result, Stat],
     ToResultBatch[Item, Result],
 ):
@@ -132,10 +137,10 @@ class BatchComputeMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase]
     config = DefaultConfig()
 
 
-type BatchComputeMetricDefault = BatchComputeMetricBase[ItemBase, ResultBase, StatBase]
+type BatchComputeMetricDefault = BatchComputeMetricBase[ChatItemBase, ResultBase, StatBase]
 
 
-class BatchIOMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
+class BatchIOMetricBase[Item: ChatItemBase, Result: ResultBase, Stat: StatBase](
     AnyMetric[Item, Result, Stat],
     ToResultBatchAsync[Item, Result],
 ):
@@ -146,4 +151,4 @@ class BatchIOMetricBase[Item: ItemBase, Result: ResultBase, Stat: StatBase](
     config = DefaultConfig()
 
 
-type BatchIOMetricDefault = BatchIOMetricBase[ItemBase, ResultBase, StatBase]
+type BatchIOMetricDefault = BatchIOMetricBase[ChatItemBase, ResultBase, StatBase]

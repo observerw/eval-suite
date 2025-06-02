@@ -9,7 +9,7 @@ from eval_suite_core.exception import BaseEvalResultType, EvalException
 from eval_suite_core.metric import (
     IOMetricBase,
     BaseStat,
-    ItemBase,
+    ChatItemBase,
     ResultBase,
     ResultGroups,
     ResultMap,
@@ -63,7 +63,7 @@ class EvalStat(StatBase):
     pass_n: dict[str, float]
 
 
-class Metric[Item: ItemBase](IOMetricBase[Item, EvalResult, EvalStat]):
+class Metric[Item: ChatItemBase](IOMetricBase[Item, EvalResult, EvalStat]):
     """Metric to calculate pass@k for a group of results"""
 
     k: int = Field(default=5, ge=1)

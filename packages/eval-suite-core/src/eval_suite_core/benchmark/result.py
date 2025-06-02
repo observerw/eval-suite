@@ -8,7 +8,7 @@ from eval_suite_core.benchmark.config import EvalConfig
 from eval_suite_core.client.schema import Message
 from eval_suite_core.metric.base import AnyMetric
 from eval_suite_core.metric.id import EvalID, ItemID
-from eval_suite_core.metric.item import ItemBase
+from eval_suite_core.metric.item import ChatItemBase
 from eval_suite_core.metric.result import ExceptionResult, ResultMap
 from eval_suite_core.prompt.schema import ChatSequence
 from eval_suite_core.utils.ray import RayQueue
@@ -62,7 +62,7 @@ class MetricGraphResultGroups(dict[ItemID, list[MetricGraphResult]]):
 class Manager:
     base_path: Path
     config: EvalConfig
-    dataset: list[ItemBase]
+    dataset: list[ChatItemBase]
 
     generation_queue: RayQueue[tuple[EvalID, Message]] = RayQueue.create()
     result_queue: RayQueue[MetricGraphResult] = RayQueue.create()

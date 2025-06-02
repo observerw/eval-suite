@@ -9,7 +9,7 @@ from eval_suite_core.prompt.schema import ChatItem, ChatSequence
 from eval_suite_core.prompt.template import ChatTemplate, history_placeholder
 
 
-class ItemBase(BaseModel, ABC):
+class ChatItemBase(BaseModel, ABC):
     """
     Base class for the schema of the evaluation dataset items.
     """
@@ -30,14 +30,16 @@ class ItemBase(BaseModel, ABC):
     def __hash__(self) -> int:
         return hash(self._eval_id)
 
-    template: ChatTemplate = ChatTemplate.compose(history_placeholder())
+    template: ChatTemplate = ChatTemplate.compose(history_placeholder)
 
     @abstractmethod
     def format(self, history: ChatSequence) -> ChatItem | None:
         """Format a chat sequence from the item and previous history. Return None if conversation finished."""
 
 
-class InstructItemBase(ItemBase):
+class ItemBase(ChatItemBase):
+    """When multi-turn conversations are not needed, this class can be used to format a single instruction."""
+
     @abstractmethod
     def format_instruction(self) -> str:
         """Format a single instruction (i.e., a single user message) from the item."""
