@@ -1,14 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import (
-    Any,
-    Literal,
-    NamedTuple,
-    Self,
-    final,
-    overload,
-)
+from typing import Any, Literal, NamedTuple, Self, final, overload
 
 from pydantic import BaseModel, PrivateAttr, RootModel
 
@@ -16,7 +9,7 @@ from eval_suite_core.client.schema import Message
 from eval_suite_core.exception import BaseEvalResultType, EvalException
 from eval_suite_core.metric.base import AnyMetric, MetricID
 from eval_suite_core.metric.id import MetricEvalID
-from eval_suite_core.metric.item import EvalID, ChatItemBase, ItemID
+from eval_suite_core.metric.item import ChatItemBase, EvalID, ItemID
 
 
 class ResultBase(BaseModel):
@@ -110,9 +103,7 @@ class ResultMap(RootModel[dict[MetricID, ResultBase]]):
     @overload
     def __getitem__(self, key: MetricID) -> ResultBase: ...
 
-    def __getitem__[Result: ResultBase](
-        self, key: AnyMetric[Any, Result, Any] | MetricID
-    ) -> Result | ResultBase:
+    def __getitem__(self, key: AnyMetric | MetricID) -> ResultBase | ResultBase:
         match key:
             case str():
                 return self.root[key]

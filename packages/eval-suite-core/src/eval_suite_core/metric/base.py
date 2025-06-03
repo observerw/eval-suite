@@ -1,4 +1,3 @@
-import contextlib
 import os
 from abc import ABC, abstractmethod
 from typing import ClassVar
@@ -37,10 +36,6 @@ class AnyMetric[
     """Configuration of the metric"""
 
     _id: UUID = PrivateAttr(default_factory=uuid4)
-
-    @contextlib.contextmanager
-    def init(self):
-        yield self
 
     def __hash__(self) -> int:
         return self._id.int
@@ -137,7 +132,9 @@ class BatchComputeMetricBase[Item: ChatItemBase, Result: ResultBase, Stat: StatB
     config = DefaultConfig()
 
 
-type BatchComputeMetricDefault = BatchComputeMetricBase[ChatItemBase, ResultBase, StatBase]
+type BatchComputeMetricDefault = BatchComputeMetricBase[
+    ChatItemBase, ResultBase, StatBase
+]
 
 
 class BatchIOMetricBase[Item: ChatItemBase, Result: ResultBase, Stat: StatBase](

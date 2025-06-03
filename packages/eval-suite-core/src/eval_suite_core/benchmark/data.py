@@ -5,11 +5,12 @@ from pathlib import Path
 from pydantic import BaseModel, create_model, model_validator
 
 from eval_suite_core.benchmark.config import EvalConfig
+from eval_suite_core.benchmark.graph import MetricGraphResult
 from eval_suite_core.client.schema import Message
 from eval_suite_core.metric.base import AnyMetric
 from eval_suite_core.metric.id import EvalID, ItemID
 from eval_suite_core.metric.item import ChatItemBase
-from eval_suite_core.metric.result import ExceptionResult, ResultMap
+from eval_suite_core.metric.result import ExceptionResult
 from eval_suite_core.prompt.schema import ChatSequence
 from eval_suite_core.utils.ray import RayQueue
 
@@ -38,9 +39,6 @@ class EvalCache(BaseModel):
         raise NotImplementedError
 
 
-type MetricGraphResult = ResultMap | ExceptionResult
-
-
 class MetricGraphResultGroups(dict[ItemID, list[MetricGraphResult]]):
     def total_count(self, item_id: ItemID) -> int:
         return len(self.get(item_id, []))
@@ -59,7 +57,7 @@ class MetricGraphResultGroups(dict[ItemID, list[MetricGraphResult]]):
 
 
 @dataclass
-class Manager:
+class Data:
     base_path: Path
     config: EvalConfig
     dataset: list[ChatItemBase]

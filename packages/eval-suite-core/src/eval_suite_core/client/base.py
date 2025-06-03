@@ -1,4 +1,3 @@
-import contextlib
 import logging
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
@@ -17,10 +16,6 @@ class AnyClient[P: SamplingParamsBase](BaseModel, ABC):
     model: str
     sampling_params: P
     config: ClientConfig = ClientConfig()
-
-    @contextlib.contextmanager
-    def init(self):
-        yield self
 
     @property
     def path_name(self) -> str:

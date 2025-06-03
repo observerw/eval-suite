@@ -80,11 +80,9 @@ class StatMap(dict[MetricID, StatBase]):
     def __getitem__[Stat: StatBase](self, key: AnyMetric[Any, Any, Stat]) -> Stat: ...
 
     @overload
-    def __getitem__(self, key: AnyMetric) -> StatBase: ...
+    def __getitem__(self, key: MetricID) -> StatBase: ...
 
-    def __getitem__[Stat: StatBase](
-        self, key: AnyMetric[Any, Any, Stat] | MetricID
-    ) -> Stat | StatBase:
+    def __getitem__(self, key: AnyMetric | MetricID) -> StatBase | StatBase:
         match key:
             case str():
                 return super().__getitem__(key)

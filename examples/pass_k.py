@@ -135,31 +135,30 @@ class Benchmark(BenchmarkBase[EvalItem]):
 async def main():
     dataset = load_repo_dataset("openai/openai_humaneval", split="test")
 
-    with (
-        PassKMetric(k=5).init() as pass_k,
-        Benchmark(
-            dataset=dataset,
-            base_path=Path("output"),
-            pass_k=pass_k,
-        ).init() as benchmark,
-        OfflineDummyClient().init() as client,
-    ):
-        stat = await benchmark.run(client)
-        print(stat)
-        # the `stat` will look like this:
-        # {
-        #     "base": {
-        #         "n_samples": 10,
-        #         "n_items": 20,
-        #         ...
-        #     },
-        #     "pass_k": {
-        #         "k": 5,
-        #         "pass_n": {
-        #             "pass@1": 0.5,
-        #             "pass@2": 0.5,
-        #             ...
-        #             "pass@5": 0.5,
-        #         }
-        #     }
-        # }
+    pass_k = PassKMetric(k=5)
+    benchmark = Benchmark(
+        dataset=dataset,
+        base_path=Path("output"),
+        pass_k=pass_k,
+    )
+    client = OfflineDummyClient()
+
+    stat = await benchmark.run(client)
+    print(stat)
+    # the `stat` will look like this:
+    # {
+    #     "base": {
+    #         "n_samples": 10,
+    #         "n_items": 20,
+    #         ...
+    #     },
+    #     "pass_k": {
+    #         "k": 5,
+    #         "pass_n": {
+    #             "pass@1": 0.5,
+    #             "pass@2": 0.5,
+    #             ...
+    #             "pass@5": 0.5,
+    #         }
+    #     }
+    # }

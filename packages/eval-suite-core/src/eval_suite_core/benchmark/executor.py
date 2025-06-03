@@ -3,13 +3,13 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from eval_suite_core.benchmark.base import BenchmarkBase
-from eval_suite_core.benchmark.eval import MetricGraph
+from eval_suite_core.benchmark.graph import MetricGraph
 from eval_suite_core.client.base import AnyClient
 from eval_suite_core.metric.item import ChatItemBase
 
 
 @dataclass
-class BenchmarkExecutor:
+class Executor:
     benchmark: BenchmarkBase
     client: AnyClient
 

@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from pydantic._internal._generics import get_model_typevars_map
 
 from eval_suite_core.benchmark.config import EvalConfig
-from eval_suite_core.benchmark.executor import BenchmarkExecutor
+from eval_suite_core.benchmark.executor import Executor
 from eval_suite_core.client.base import AnyClient
 from eval_suite_core.metric.base import AnyMetric
 from eval_suite_core.metric.item import ChatItemBase
@@ -19,7 +19,7 @@ from eval_suite_core.utils.collections import OrderedSet
 
 
 @dataclass
-class BenchmarkResult:
+class Result:
     results: ResultMap
     stats: StatMap
 
@@ -63,6 +63,6 @@ class BenchmarkBase[Item: ChatItemBase](BaseModel):
     def init(self):
         yield self
 
-    async def run(self, client: AnyClient) -> BenchmarkResult:
-        async with BenchmarkExecutor.create(benchmark=self, client=client) as executor:
+    async def run(self, client: AnyClient) -> Result:
+        async with Executor.create(benchmark=self, client=client) as executor:
             return await executor.run()

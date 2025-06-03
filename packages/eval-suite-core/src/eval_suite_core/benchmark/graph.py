@@ -1,5 +1,5 @@
 import asyncio as aio
-from collections.abc import Coroutine, Iterable, Mapping, Sequence
+from collections.abc import Coroutine, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -15,7 +15,6 @@ from eval_suite_core.metric.base import (
     ComputeMetricDefault,
     IOMetricDefault,
     MetricDefault,
-    MetricID,
 )
 from eval_suite_core.metric.result import (
     ExceptionResult,
@@ -164,6 +163,9 @@ class BatchIOMetricWorker(sunray.ActorMixin):
         return await self.metric.to_result([*args_batch])
 
 
+type MetricGraphResult = ResultMap | ExceptionResult
+
+
 @dataclass
 class MetricGraph:
     graph: MultiOutputNode
@@ -212,9 +214,7 @@ class MetricGraph:
                     executor=executor,
                 )
 
-    async def execute(
-        self, input: ToResultArgsBase
-    ) -> Mapping[MetricID, ResultBase | ExceptionResult]:
+    async def execute(self, input: ToResultArgsBase) -> MetricGraphResult:
         results = self.graph.execute(input)
         results = [
             ExceptionResult.from_exception(result)
@@ -223,4 +223,8 @@ class MetricGraph:
             for result in results
         ]
 
-        return {metric.id: result for metric, result in zip(self.sink_metrics, results)}
+        raise NotImplementedError
+
+        return ResultMap(
+            {metric.id: result for metric, result in zip(self.sink_metrics, results)}
+        )

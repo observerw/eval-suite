@@ -2,17 +2,20 @@ import random
 from pathlib import Path
 from typing import override
 
-from eval_suite_core.client.schema import Message
-from eval_suite_core.metric.base import MetricBase
-from eval_suite_core.metric.config import MetricConfig
-from eval_suite_core.metric.item import ChatItemBase, ItemID
-from eval_suite_core.metric.result import (
+from eval_suite_core.client import Message
+from eval_suite_core.metric import (
+    BaseStat,
+    ChatItemBase,
+    ItemID,
+    MetricBase,
+    MetricConfig,
     ResultBase,
     ResultGroups,
     ResultMap,
+    StatBase,
+    StatMap,
 )
-from eval_suite_core.metric.stat import BaseStat, StatBase, StatMap
-from eval_suite_core.prompt.schema import ChatSequence
+from eval_suite_core.prompt import ChatSequence
 
 
 class EvalItem(ChatItemBase):
