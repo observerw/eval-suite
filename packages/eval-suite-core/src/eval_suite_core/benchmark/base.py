@@ -1,4 +1,3 @@
-import contextlib
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from functools import cached_property
@@ -20,7 +19,7 @@ from eval_suite_core.utils.collections import OrderedSet
 
 @dataclass
 class Result:
-    results: ResultMap
+    results: list[ResultMap]
     stats: StatMap
 
 
@@ -46,8 +45,8 @@ class BenchmarkBase[Item: ChatItemBase](BaseModel):
         return [metric for _, metric in dict(self) if isinstance(metric, AnyMetric)]
 
     @cached_property
-    def ordered_metrics(self) -> list[AnyMetric]:
-        """Topologically sort metrics."""
+    def ordered_metrics(self) -> Sequence[AnyMetric]:
+        """Topologically sorted metrics."""
 
         metrics = OrderedSet()
         stack = [*self.sink_metrics]
@@ -57,11 +56,7 @@ class BenchmarkBase[Item: ChatItemBase](BaseModel):
             metrics.add(metric)
             stack.extend(metric.prec)
 
-        return list(reversed(metrics))  # reverse to get the real topological order
-
-    @contextlib.contextmanager
-    def init(self):
-        yield self
+        return list(reversed(metrics))  # reverse to get real topological order
 
     async def run(self, client: AnyClient) -> Result:
         async with Executor.create(benchmark=self, client=client) as executor:

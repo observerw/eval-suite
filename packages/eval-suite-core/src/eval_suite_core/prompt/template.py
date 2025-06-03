@@ -9,10 +9,7 @@ from jinja2 import Template
 from pydantic import BaseModel
 
 from eval_suite_core.metric.item import ChatItemBase
-from eval_suite_core.prompt.formatter import (
-    AnyFormatter,
-    FormatterBase,
-)
+from eval_suite_core.prompt.formatter import AnyFormatter, FormatterBase
 from eval_suite_core.prompt.schema import (
     ChatItem,
     ChatSequence,

@@ -9,7 +9,7 @@ from eval_suite_core.prompt.schema import ChatSequence
 
 
 class FormatFields(BaseModel):
-    model_config = {"frozen": True}
+    model_config = {"frozen": True, "arbitrary_types_allowed": True}
 
 
 class FormatterBase[Item: ChatItemBase](BaseModel, ABC):

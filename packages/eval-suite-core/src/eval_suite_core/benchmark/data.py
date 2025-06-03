@@ -67,7 +67,8 @@ class Data:
     retry_queue: RayQueue[ItemID] = RayQueue.create()
 
     groups: MetricGraphResultGroups = MetricGraphResultGroups()
-    histories: dict[ItemID, ChatSequence] = {}
+
+    chat_histories: dict[ItemID, ChatSequence] = {}
 
     def is_finished(self, item_id: ItemID) -> bool:
         """Check if item has sufficient results (>= n_samples) or excceeded max retries (>= max_n_samples)."""

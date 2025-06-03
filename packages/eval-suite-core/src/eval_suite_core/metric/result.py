@@ -58,8 +58,9 @@ class ExceptionResult(BaseModel):
         return cls(message=exc.message, type=exc.type)
 
 
-# item -> *result
 class ResultGroups[Result: ResultBase](dict[ItemID, list[Result]]):
+    """Item to multiple Results"""
+
     def flatten(self) -> Iterable[Result]:
         return (result for group in self.values() for result in group)
 
@@ -85,8 +86,9 @@ class RawResultGroups(dict[ItemID, list[ResultBase | ExceptionResult]]):
         )
 
 
-# metric -> result
 class ResultMap(RootModel[dict[MetricID, ResultBase]]):
+    """Metric to Result"""
+
     root: dict[MetricID, ResultBase]
 
     _eval_id: EvalID = PrivateAttr()
